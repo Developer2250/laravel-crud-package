@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 
 use Illuminate\Http\Request;
 
@@ -19,7 +21,7 @@ class ProductController extends Controller
         return view('Product.create');
     }
 
-    public function store(Request $request)
+    public function store(StoreProductRequest $request)
     {
         $data = $request->all();
         Product::create($data);
@@ -38,10 +40,11 @@ class ProductController extends Controller
         return view('Product.edit', compact('item'));
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateProductRequest $request, $id)
     {
         $item = Product::findOrFail($id);
-        $item->update($request->all());
+        $item->update($request->validated());
+
         return redirect()->route('products.index')->with('success', 'Product updated successfully.');
     }
 

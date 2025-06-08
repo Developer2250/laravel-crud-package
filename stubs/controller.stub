@@ -3,6 +3,8 @@
 namespace {{ namespace }};
 
 use App\Models\{{ model }};
+use App\Http\Requests\Store{{ model }}Request;
+use App\Http\Requests\Update{{ model }}Request;
 
 use Illuminate\Http\Request;
 
@@ -19,7 +21,7 @@ class {{ model }}Controller extends Controller
         return view('{{ model }}.create');
     }
 
-    public function store(Request $request)
+    public function store(Store{{ model }}Request $request)
     {
         $data = $request->all();
         {{ model }}::create($data);
@@ -38,10 +40,11 @@ class {{ model }}Controller extends Controller
         return view('{{ model }}.edit', compact('item'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Update{{ model }}Request $request, $id)
     {
         $item = {{ model }}::findOrFail($id);
-        $item->update($request->all());
+        $item->update($request->validated());
+
         return redirect()->route('{{ table }}.index')->with('success', '{{ model }} updated successfully.');
     }
 

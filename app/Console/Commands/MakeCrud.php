@@ -54,6 +54,16 @@ class MakeCrud extends Command
                 return 1;
             }
 
+            // Generate Store Request
+            if (!$this->generateRequest($model, $fields, 'Store')) {
+                return 1;
+            }
+
+            // Generate Update Request
+            if (!$this->generateRequest($model, $fields, 'Update')) {
+                return 1;
+            }
+
             // Generate Controller
             if (!$this->generateController($model)) {
                 return 1;
@@ -240,6 +250,87 @@ class MakeCrud extends Command
         }
     }
 
+    protected function generateRequest($model, $fields, $type = 'Update')
+    {
+        try {
+            $className = "{$type}{$model}Request"; // e.g. StoreProductRequest or UpdateProductRequest
+            $namespace = "App\\Http\\Requests";
+            $requestPath = app_path("Http/Requests/{$className}.php");
+
+            $stubPath = base_path('stubs/request.stub');
+            if (!File::exists($stubPath)) {
+                $this->error('Request stub not found.');
+                return false;
+            }
+
+            $stub = File::get($stubPath);
+
+            $rulesArr = [];
+            $messagesArr = [];
+
+            foreach ($fields as $field) {
+                $name = $field['name'];
+                $label = ucfirst(str_replace('_', ' ', $name));
+
+                // Start rule with required
+                $rule = "required";
+
+                // Add type-based rules
+                switch ($field['type']) {
+                    case 'email':
+                        $rule .= '|email';
+                        $messagesArr[] = "'{$name}.email' => 'The {$label} must be a valid email address.',";
+                        break;
+                    case 'integer':
+                        $rule .= '|integer';
+                        $messagesArr[] = "'{$name}.integer' => 'The {$label} must be an integer.',";
+                        break;
+                    case 'decimal':
+                        $rule .= '|numeric';
+                        $messagesArr[] = "'{$name}.numeric' => 'The {$label} must be a number.',";
+                        break;
+                    case 'text':
+                    case 'string':
+                        $rule .= '|string';
+                        break;
+                        // Add other types as needed
+                }
+
+                // Add max length if exists and type supports it
+                if (in_array($field['type'], ['string', 'text'])) {
+                    $max = $field['length'] ?? $field['max'] ?? null;
+                    if ($max) {
+                        $rule .= "|max:{$max}";
+                        $messagesArr[] = "'{$name}.max' => 'The {$label} may not be greater than {$max} characters.',";
+                    }
+                }
+
+                // Required message for all fields
+                $messagesArr[] = "'{$name}.required' => 'The {$label} field is required.',";
+
+                $rulesArr[] = "'{$name}' => '{$rule}',";
+            }
+
+            $rules = implode("\n            ", $rulesArr);
+            $messages = implode("\n            ", $messagesArr);
+
+            $stub = str_replace(
+                ['{{ namespace }}', '{{ class }}', '{{ rules }}', '{{ messages }}'],
+                [$namespace, $className, $rules, $messages],
+                $stub
+            );
+
+            File::put($requestPath, $stub);
+
+            $this->info("Request generated: {$className}");
+            return true;
+        } catch (\Exception $e) {
+            $this->error('Failed to generate request: ' . $e->getMessage());
+            Log::error('Failed to generate request: ' . $e->getMessage(), ['exception' => $e]);
+            return false;
+        }
+    }
+
     protected function generateController($model)
     {
         try {
@@ -309,24 +400,24 @@ class MakeCrud extends Command
         $thead = '';
         $tbody = '';
         foreach ($fields as $field) {
-            $thead .= "<th>" . ucfirst($field['name']) . "</th>\n            ";
-            $tbody .= "<td>{{ \$item->" . $field['name'] . " }}</td>\n                ";
+            $thead .= "<th>" . ucfirst($field['name']) . "</th>\n                ";
+            $tbody .= "<td>{{ \$item->" . $field['name'] . " }}</td>\n                    ";
         }
 
-        // Make sure $table is plural (e.g. products)
         $tablePlural = Str::plural($table);
 
         return <<<EOD
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>{$model} List</title>
-                <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-            </head>
-            <body>
-                <h1>{$model} List</h1>
-                <a href="{{ route('{$tablePlural}.create') }}" class="btn btn-primary">Create {$model}</a>
-                <table class="table">
+            @extends('layouts.app')
+
+            @section('title', '{$model} List')
+
+            @section('content')
+                <div class="d-flex justify-content-between align-items-center mb-3 mt-5">
+                    <h1>{$model} List</h1>
+                    <a href="{{ route('{$tablePlural}.create') }}" class="btn btn-primary">Create {$model}</a>
+                </div>
+
+                <table class="table table-bordered table-striped">
                     <thead>
                         <tr>
                             {$thead}
@@ -338,20 +429,19 @@ class MakeCrud extends Command
                             <tr>
                                 {$tbody}
                                 <td>
-                                    <a href="{{ route('{$tablePlural}.show', \$item->id) }}" class="btn btn-info">View</a>
-                                    <a href="{{ route('{$tablePlural}.edit', \$item->id) }}" class="btn btn-warning">Edit</a>
-                                    <form action="{{ route('{$tablePlural}.destroy', \$item->id) }}" method="POST" style="display:inline;">
+                                    <a href="{{ route('{$tablePlural}.show', \$item->id) }}" class="btn btn-sm btn-info">View</a>
+                                    <a href="{{ route('{$tablePlural}.edit', \$item->id) }}" class="btn btn-sm btn-warning">Edit</a>
+                                    <form action="{{ route('{$tablePlural}.destroy', \$item->id) }}" method="POST" class="d-inline">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                                     </form>
                                 </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
-            </body>
-            </html>
+            @endsection
             EOD;
     }
 
@@ -360,85 +450,120 @@ class MakeCrud extends Command
         $formFields = '';
         foreach ($fields as $field) {
             $name = $field['name'];
-            $label = ucfirst($name); // Precompute label text
+            $label = ucfirst($name);
             $type = $field['type'] == 'decimal' ? 'number' : ($field['type'] == 'text' ? 'textarea' : 'text');
 
             if ($type == 'textarea') {
-                $input = "<textarea name=\"$name\" class=\"form-control\" required></textarea>";
+                $input = <<<HTML
+                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name') }}</textarea>
+                @error('$name')
+                    <div class="invalid-feedback">{{ \$message }}</div>
+                @enderror
+                HTML;
             } else {
-                // For number type, adding step only if decimal
                 $step = $field['type'] == 'decimal' ? ' step="0.01"' : '';
-                $input = "<input type=\"$type\" name=\"$name\" class=\"form-control\"{$step} required>";
+                $input = <<<HTML
+                <input type="$type" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name') }}">
+                @error('$name')
+                    <div class="invalid-feedback">{{ \$message }}</div>
+                @enderror
+                HTML;
             }
 
             $formFields .= <<<EOD
-        <div class="form-group">
-            <label for="$name">$label</label>
-            $input
-        </div>
+                <div class="mb-3">
+                    <label for="$name" class="form-label">$label <span class="required">*</span></label>
+                    $input
+                </div>
 
-        EOD;
+            EOD;
         }
 
-        // Plural snake case table name for route name
         $table = Str::plural(Str::snake($model));
 
         return <<<EOD
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Create {$model}</title>
-            <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-        </head>
-        <body>
-            <h1>Create {$model}</h1>
-            <form action="{{ route('{$table}.store') }}" method="POST">
-                @csrf
-                $formFields
-                <button type="submit" class="btn btn-primary">Save</button>
-            </form>
-        </body>
-        </html>
-        EOD;
+            @extends('layouts.app')
+
+            @section('title', 'Create {$model}')
+
+            @section('content')
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h1>Create {$model}</h1>
+                        <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
+                    </div>
+                    <form action="{{ route('{$table}.store') }}" method="POST">
+                        @csrf
+                        $formFields
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="reset" class="btn btn-outline-danger">Cancel</button>
+                            <button type="submit" class="btn btn-success">Save</button>
+                        </div>
+                    </form>
+                </div>
+            @endsection
+            EOD;
     }
 
     protected function getEditViewStub($model, $fields)
     {
-        $table = Str::plural(Str::snake($model));
         $formFields = '';
         foreach ($fields as $field) {
             $name = $field['name'];
-            $label = ucfirst($name); // Precompute label text
+            $label = ucfirst($name);
             $type = $field['type'] == 'decimal' ? 'number' : ($field['type'] == 'text' ? 'textarea' : 'text');
-            $input = ($type == 'textarea'
-                ? "<textarea name=\"$name\" class=\"form-control\" required>{{ \$item->$name }}</textarea>"
-                : "<input type=\"$type\" name=\"$name\" class=\"form-control\" value=\"{{ \$item->$name }}\" step=\"0.01\" required>");
-            $formFields .= <<<EOD
-        <div class="form-group">
-            <label for="$name">$label</label>
-            $input
-        </div>
 
-        EOD;
+            if ($type === 'textarea') {
+                $input = <<<HTML
+                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
+                @error('$name')
+                    <div class="invalid-feedback">{{ \$message }}</div>
+                @enderror
+                HTML;
+            } else {
+                $step = $field['type'] == 'decimal' ? ' step="0.01"' : '';
+                $input = <<<HTML
+                <input type="$type" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name', \$item->$name) }}">
+                @error('$name')
+                    <div class="invalid-feedback">{{ \$message }}</div>
+                @enderror
+                HTML;
+            }
+
+            $formFields .= <<<EOD
+                <div class="mb-3">
+                    <label for="$name" class="form-label">$label <span class="required">*</span></label>
+                    $input
+                </div>
+
+            EOD;
         }
 
+        $table = Str::plural(Str::snake($model));
+
         return <<<EOD
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <tiWWtle>Edit {$model}</tiWWtle>
-            <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-        </head>
-        <body>
-            <h1>Edit {$model}</h1>
-            <form action="{{ route('{$table}.update', \$item->id) }}" method="POST">
-                @csrf
-                @method('PUT')
-                $formFields
-                <button type="submit" class="btn btn-primary">Update</button>
-            </form>
-        </body>
-        </html>
+        @extends('layouts.app')
+
+        @section('title', 'Edit {$model}')
+
+        @section('content')
+            <div class="mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h1>Edit {$model}</h1>
+                    <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
+                </div>
+
+                <form action="{{ route('{$table}.update', \$item->id) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    $formFields
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="reset" class="btn btn-outline-danger">Cancel</button>
+                        <button type="submit" class="btn btn-success">Update</button>
+                    </div>
+                </form>
+            </div>
+        @endsection
         EOD;
     }
 
@@ -447,23 +572,21 @@ class MakeCrud extends Command
         $fieldsContent = '';
         foreach ($fields as $field) {
             $name = $field['name'];
-            $fieldsContent .= "<p><strong>" . ucfirst($name) . ":</strong> {{ \$item->$name }}</p>\n        ";
+            $fieldsContent .= "<p><strong>" . ucfirst($name) . ":</strong> {{ \$item->$name }}</p>\n    ";
         }
+
         $table = Str::plural(Str::snake($model));
 
         return <<<EOD
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>View {$model}</title>
-            <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-        </head>
-        <body>
-            <h1>View {$model}</h1>
-            $fieldsContent
-            <a href="{{ route('{$table}.index') }}" class="btn btn-primary">Back to List</a>
-        </body>
-        </html>
-        EOD;
+            @extends('layouts.app')
+
+            @section('title', 'View {$model}')
+
+            @section('content')
+                <h1>View {$model}</h1>
+                $fieldsContent
+                <a href="{{ route('{$table}.index') }}" class="btn btn-secondary mt-3">Back to List</a>
+            @endsection
+            EOD;
     }
 }
