@@ -9,7 +9,7 @@
             <a href="{{ route('products.index') }}" class="btn btn-secondary">← Back to List</a>
         </div>
 
-        <form action="{{ route('products.update', $item->id) }}" method="POST">
+        <form action="{{ route('products.update', $item->id) }}" method="POST" id="edit-form">
             @csrf
             @method('PUT')
                 <div class="mb-3">
@@ -28,16 +28,30 @@
     </div>
     <div class="mb-3">
         <label for="description" class="form-label">Description <span class="required">*</span></label>
-        <textarea name="description" id="description" class="form-control @error('description') is-invalid @enderror" rows="4" cols="50">{{ old('description', $item->description) }}</textarea>
+        <textarea name="description" id="description" class="form-control @error('description') is-invalid @enderror" placeholder="Enter Description" rows="4" cols="50">{{ old('description', $item->description) }}</textarea>
 @error('description')
     <div class="invalid-feedback">{{ $message }}</div>
 @enderror
     </div>
 
             <div class="d-flex justify-content-end gap-2">
-                <button type="reset" class="btn btn-outline-danger">Cancel</button>
+                <button type="reset" class="btn btn-outline-danger" id="edit-clear-form">Cancel</button>
                 <button type="submit" class="btn btn-success">Update</button>
             </div>
         </form>
     </div>
+<script>
+    document.getElementById('edit-clear-form').addEventListener('click', function(e) {
+        e.preventDefault(); // Prevent any default actions
+        const form = document.getElementById('edit-form');
+        form.querySelectorAll('input, textarea, select').forEach(input => {
+            if (input.type === 'hidden') return; // Skip hidden inputs, e.g., _method field
+            if (input.type === 'checkbox' || input.type === 'radio') {
+                input.checked = false;
+            } else {
+                input.value = '';
+            }
+        });
+    });
+</script>
 @endsection

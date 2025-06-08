@@ -492,15 +492,27 @@ class MakeCrud extends Command
                         <h1>Create {$model}</h1>
                         <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
                     </div>
-                    <form action="{{ route('{$table}.store') }}" method="POST">
+                    <form action="{{ route('{$table}.store') }}" method="POST" id="create-form">
                         @csrf
                         $formFields
                         <div class="d-flex justify-content-end gap-2">
-                            <button type="reset" class="btn btn-outline-danger">Cancel</button>
+                            <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
                             <button type="submit" class="btn btn-success">Save</button>
                         </div>
                     </form>
                 </div>
+            <script>
+                document.getElementById('clear-form').addEventListener('click', function () {
+                    const form = document.getElementById('create-form');
+                    form.querySelectorAll('input, textarea, select').forEach(input => {
+                        if (input.type === 'checkbox' || input.type === 'radio') {
+                            input.checked = false;
+                        } else {
+                            input.value = '';
+                        }
+                    });
+                });
+            </script>
             @endsection
             EOD;
     }
@@ -515,7 +527,7 @@ class MakeCrud extends Command
 
             if ($type === 'textarea') {
                 $input = <<<HTML
-                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
+                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
                 @error('$name')
                     <div class="invalid-feedback">{{ \$message }}</div>
                 @enderror
@@ -553,16 +565,30 @@ class MakeCrud extends Command
                     <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
                 </div>
 
-                <form action="{{ route('{$table}.update', \$item->id) }}" method="POST">
+                <form action="{{ route('{$table}.update', \$item->id) }}" method="POST" id="edit-form">
                     @csrf
                     @method('PUT')
                     $formFields
                     <div class="d-flex justify-content-end gap-2">
-                        <button type="reset" class="btn btn-outline-danger">Cancel</button>
+                        <button type="reset" class="btn btn-outline-danger" id="edit-clear-form">Cancel</button>
                         <button type="submit" class="btn btn-success">Update</button>
                     </div>
                 </form>
             </div>
+        <script>
+            document.getElementById('edit-clear-form').addEventListener('click', function(e) {
+                e.preventDefault(); // Prevent any default actions
+                const form = document.getElementById('edit-form');
+                form.querySelectorAll('input, textarea, select').forEach(input => {
+                    if (input.type === 'hidden') return; // Skip hidden inputs, e.g., _method field
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        input.checked = false;
+                    } else {
+                        input.value = '';
+                    }
+                });
+            });
+        </script>
         @endsection
         EOD;
     }

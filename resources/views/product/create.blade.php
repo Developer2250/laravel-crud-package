@@ -8,7 +8,7 @@
             <h1>Create Product</h1>
             <a href="{{ route('products.index') }}" class="btn btn-secondary">← Back to List</a>
         </div>
-        <form action="{{ route('products.store') }}" method="POST">
+        <form action="{{ route('products.store') }}" method="POST" id="create-form">
             @csrf
                 <div class="mb-3">
         <label for="name" class="form-label">Name <span class="required">*</span></label>
@@ -33,9 +33,21 @@
     </div>
 
             <div class="d-flex justify-content-end gap-2">
-                <button type="reset" class="btn btn-outline-danger">Cancel</button>
+                <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
                 <button type="submit" class="btn btn-success">Save</button>
             </div>
         </form>
     </div>
+<script>
+    document.getElementById('clear-form').addEventListener('click', function () {
+        const form = document.getElementById('create-form');
+        form.querySelectorAll('input, textarea, select').forEach(input => {
+            if (input.type === 'checkbox' || input.type === 'radio') {
+                input.checked = false;
+            } else {
+                input.value = '';
+            }
+        });
+    });
+</script>
 @endsection
