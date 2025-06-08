@@ -12,6 +12,12 @@ class {{ class }} extends Seeder
      */
     public function run(): void
     {
-        //
+        \$faker = Faker::create();
+
+        for (\$i = 0; \$i < 20; \$i++) {
+            {{ model }}::create([
+                {{ fields }}
+            ]);
+        }
     }
 }

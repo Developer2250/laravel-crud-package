@@ -2,10 +2,11 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Artisan;
 
 class MakeCrud extends Command
 {
@@ -78,6 +79,17 @@ class MakeCrud extends Command
             if (!$this->appendRoutes($model, $table)) {
                 return 1;
             }
+
+            // Generate Seeder
+            if (!$this->generateSeeder($model, $fields)) {
+                return 1;
+            }
+
+            // Run Seeder
+            Artisan::call('db:seed', [
+                '--class' => $model . 'Seeder',
+                '--force' => true,
+            ]);
 
             $this->info("CRUD for {$model} generated successfully!");
             return 0;
@@ -397,19 +409,28 @@ class MakeCrud extends Command
 
     protected function getIndexViewStub($model, $table, $fields)
     {
-        $thead = '';
-        $tbody = '';
+        $thead = "<th>S. No.</th>\n";
+        $tbody = "<td>{{ \$loop->iteration }}</td>\n";
         foreach ($fields as $field) {
-            $thead .= "<th>" . ucfirst($field['name']) . "</th>\n                ";
-            $tbody .= "<td>{{ \$item->" . $field['name'] . " }}</td>\n                    ";
+            $label = ucfirst($field['name']);
+            $fieldName = $field['name'];
+
+            $thead .= "<th>$label</th>\n";
+            $tbody .= "<td>{{ \$item->$fieldName }}</td>\n";
         }
 
         $tablePlural = Str::plural($table);
+        $tableId = strtolower($table) . '-table';
+        $colspan = count($fields) + 1;
 
         return <<<EOD
             @extends('layouts.app')
 
             @section('title', '{$model} List')
+
+            @push('styles')
+                <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+            @endpush
 
             @section('content')
                 <div class="d-flex justify-content-between align-items-center mb-3 mt-5">
@@ -417,31 +438,47 @@ class MakeCrud extends Command
                     <a href="{{ route('{$tablePlural}.create') }}" class="btn btn-primary">Create {$model}</a>
                 </div>
 
-                <table class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            {$thead}
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach(\${$tablePlural} as \$item)
+                <div class="table-responsive">
+                    <table id="{$tableId}" class="table table-bordered table-striped">
+                        <thead>
                             <tr>
-                                {$tbody}
-                                <td>
-                                    <a href="{{ route('{$tablePlural}.show', \$item->id) }}" class="btn btn-sm btn-info">View</a>
-                                    <a href="{{ route('{$tablePlural}.edit', \$item->id) }}" class="btn btn-sm btn-warning">Edit</a>
-                                    <form action="{{ route('{$tablePlural}.destroy', \$item->id) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                    </form>
-                                </td>
+                                {$thead}
+                                <th>Actions</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @forelse(\${$tablePlural} as \$item)
+                                <tr>
+                                    {$tbody}
+                                    <td>
+                                        <a href="{{ route('{$tablePlural}.show', \$item->id) }}" class="btn btn-sm btn-info">View</a>
+                                        <a href="{{ route('{$tablePlural}.edit', \$item->id) }}" class="btn btn-sm btn-warning">Edit</a>
+                                        <form action="{{ route('{$tablePlural}.destroy', \$item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this item?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="{$colspan}" class="text-center">No {$model}s found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             @endsection
+
+            @push('scripts')
+                <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+                <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+                <script>
+                    \$(document).ready(function () {
+                        \$('#{$tableId}').DataTable();
+                    });
+                </script>
+            @endpush
             EOD;
     }
 
@@ -614,5 +651,73 @@ class MakeCrud extends Command
                 <a href="{{ route('{$table}.index') }}" class="btn btn-secondary mt-3">Back to List</a>
             @endsection
             EOD;
+    }
+
+    protected function generateSeeder($model, $fields)
+    {
+        $namespace = "Database\\Seeders";
+        $class = $model . "Seeder";
+
+        // Build $fieldsString for seeder with faker data based on field type
+        $fieldsString = '';
+        foreach ($fields as $field) {
+            $name = $field['name'];
+            $type = strtolower($field['type'] ?? 'string');
+
+            switch ($type) {
+                case 'decimal':
+                case 'float':
+                    $fieldsString .= "'$name' => \$faker->randomFloat(2, 1, 1000),\n";
+                    break;
+
+                case 'integer':
+                case 'int':
+                case 'bigint':
+                    $fieldsString .= "'$name' => \$faker->numberBetween(1, 1000),\n";
+                    break;
+
+                case 'text':
+                    $fieldsString .= "'$name' => \$faker->sentence(),\n";
+                    break;
+
+                case 'string':
+                case 'varchar':
+                default:
+                    $fieldsString .= "'$name' => \$faker->word(),\n";
+                    break;
+            }
+        }
+
+        $stub = <<<EOD
+            <?php
+
+            namespace $namespace;
+
+            use Illuminate\Database\Seeder;
+            use App\Models\\$model;
+            use Faker\Factory as Faker;
+
+            class $class extends Seeder
+            {
+                public function run()
+                {
+                    \$faker = Faker::create();
+
+                    for (\$i = 0; \$i < 20; \$i++) {
+                        $model::create([
+            $fieldsString
+                        ]);
+                    }
+                }
+            }
+
+            EOD;
+
+        $seederPath = database_path("seeders/{$class}.php");
+        file_put_contents($seederPath, $stub);
+
+        $this->info("Seeder created: $seederPath");
+
+        return true;
     }
 }
