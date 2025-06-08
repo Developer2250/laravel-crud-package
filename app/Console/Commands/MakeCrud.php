@@ -16,7 +16,6 @@ class MakeCrud extends Command
     public function handle()
     {
         try {
-            // $schemaPath = storage_path('app/schemas/' . $this->argument('schema') . '.json');
             $schemaPath = storage_path('app' . DIRECTORY_SEPARATOR . 'schemas' . DIRECTORY_SEPARATOR . $this->argument('schema') . '.json');
             if (!File::exists($schemaPath)) {
                 $this->error('Schema file not found at ' . $schemaPath);
@@ -265,7 +264,7 @@ class MakeCrud extends Command
     protected function generateRequest($model, $fields, $type = 'Update')
     {
         try {
-            $className = "{$type}{$model}Request"; // e.g. StoreProductRequest or UpdateProductRequest
+            $className = "{$type}{$model}Request"; // 
             $namespace = "App\\Http\\Requests";
             $requestPath = app_path("Http/Requests/{$className}.php");
 
