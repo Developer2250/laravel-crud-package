@@ -1,0 +1,54 @@
+<?php
+
+namespace {{ namespace }};
+
+use App\Models\{{ model }};
+
+use Illuminate\Http\Request;
+
+class {{ model }}Controller extends Controller
+{
+    public function index()
+    {
+        ${{ table }} = {{ model }}::all();
+        return view('{{ model }}.index', compact('{{ table }}'));
+    }
+
+    public function create()
+    {
+        return view('{{ model }}.create');
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->all();
+        {{ model }}::create($data);
+        return redirect()->route('{{ table }}.index')->with('success', '{{ model }} created successfully.');
+    }
+
+    public function show($id)
+    {
+        $item = {{ model }}::findOrFail($id);
+        return view('{{ model }}.show', compact('item'));
+    }
+
+    public function edit($id)
+    {
+        $item = {{ model }}::findOrFail($id);
+        return view('{{ model }}.edit', compact('item'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $item = {{ model }}::findOrFail($id);
+        $item->update($request->all());
+        return redirect()->route('{{ table }}.index')->with('success', '{{ model }} updated successfully.');
+    }
+
+    public function destroy($id)
+    {
+        $item = {{ model }}::findOrFail($id);
+        $item->delete();
+        return redirect()->route('{{ table }}.index')->with('success', '{{ model }} deleted successfully.');
+    }
+}
