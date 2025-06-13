@@ -20,6 +20,7 @@
 <th>{{ __('labels.first_name') }}</th>
 <th>{{ __('labels.last_name') }}</th>
 <th>{{ __('labels.bio') }}</th>
+<th>{{ __('labels.full_name') }}</th>
 
                     <th>Actions</th>
                 </tr>
@@ -31,6 +32,7 @@
 <td>{{ $item->first_name }}</td>
 <td>{{ $item->last_name }}</td>
 <td>{{ $item->bio }}</td>
+<td>{{ $item->full_name }}</td>
 
                         <td>
                             <a href="{{ route('authors.show', $item->id) }}" class="btn btn-sm btn-info">View</a>
@@ -44,7 +46,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="text-center">No Authors found.</td>
+                        <td colspan="6" class="text-center">No Authors found.</td>
                     </tr>
                 @endforelse
             </tbody>

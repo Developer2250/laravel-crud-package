@@ -26,7 +26,7 @@ class StoreBookRequest extends FormRequest
             'author_id' => 'required',
             'published_date' => 'required',
             'isbn' => 'required|string|max:20',
-            'summary' => 'required|string',
+            'summary' => 'required|string|max:200',
         ];
     }
 
@@ -44,6 +44,7 @@ class StoreBookRequest extends FormRequest
             'published_date.required' => 'The Published date field is required.',
             'isbn.max' => 'The Isbn may not be greater than 20 characters.',
             'isbn.required' => 'The Isbn field is required.',
+            'summary.max' => 'The Summary may not be greater than 200 characters.',
             'summary.required' => 'The Summary field is required.',
         ];
     }

@@ -1,16 +1,16 @@
-@extends('layouts.app')
+    @extends('layouts.app')
 
-@section('title', 'Create Book')
+    @section('title', 'Create Book')
 
-@section('content')
-    <div class="mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1>Create Book</h1>
-            <a href="{{ route('books.index') }}" class="btn btn-secondary">← Back to List</a>
-        </div>
-        <form action="{{ route('books.store') }}" method="POST" id="create-form">
-            @csrf
-                <div class="mb-3">
+    @section('content')
+        <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1>Create Book</h1>
+                <a href="{{ route('books.index') }}" class="btn btn-secondary">← Back to List</a>
+            </div>
+            <form action="{{ route('books.store') }}" method="POST" id="create-form">
+                @csrf
+                    <div class="mb-3">
         <label for="title" class="form-label">{{ __('labels.title') }} <span class="required">*</span></label>
         <input type="text" name="title" id="title" class="form-control @error('title') is-invalid @enderror" placeholder="Enter {{ __('labels.title') }}" value="{{ old('title') }}">
 @error('title')
@@ -26,7 +26,7 @@
     </div>
     <div class="mb-3">
         <label for="published_date" class="form-label">{{ __('labels.published_date') }} <span class="required">*</span></label>
-        <input type="text" name="published_date" id="published_date" class="form-control @error('published_date') is-invalid @enderror" placeholder="Enter {{ __('labels.published_date') }}" value="{{ old('published_date') }}">
+        <input type="date" name="published_date" id="published_date" class="form-control @error('published_date') is-invalid @enderror" placeholder="Enter {{ __('labels.published_date') }}" value="{{ old('published_date') }}">
 @error('published_date')
     <div class="invalid-feedback">{{ $message }}</div>
 @enderror
@@ -46,22 +46,22 @@
 @enderror
     </div>
 
-            <div class="d-flex justify-content-end gap-2">
-                <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
-                <button type="submit" class="btn btn-success">Save</button>
-            </div>
-        </form>
-    </div>
-<script>
-    document.getElementById('clear-form').addEventListener('click', function () {
-        const form = document.getElementById('create-form');
-        form.querySelectorAll('input, textarea, select').forEach(input => {
-            if (input.type === 'checkbox' || input.type === 'radio') {
-                input.checked = false;
-            } else {
-                input.value = '';
-            }
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    <script>
+        document.getElementById('clear-form').addEventListener('click', function () {
+            const form = document.getElementById('create-form');
+            form.querySelectorAll('input, textarea, select').forEach(input => {
+                if (input.type === 'checkbox' || input.type === 'radio') {
+                    input.checked = false;
+                } else {
+                    input.value = '';
+                }
+            });
         });
-    });
-</script>
-@endsection
+    </script>
+    @endsection

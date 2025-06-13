@@ -10,16 +10,15 @@ class BookSeeder extends Seeder
 {
     public function run()
     {
-        $faker = Faker::create();
+        $faker = Faker::create('en_US'); // Use US English locale
 
         for ($i = 0; $i < 20; $i++) {
             Book::create([
-'title' => $faker->word(),
+'title' => $faker->sentence(3),
 'author_id' => \App\Models\Author::inRandomOrder()->value('id') ?? 1,
 'published_date' => $faker->date('Y-m-d'),
-'isbn' => $faker->word(),
-'summary' => $faker->sentence(),
-
+'isbn' => $faker->isbn13(),
+'summary' => $faker->realText(100),
             ]);
         }
     }

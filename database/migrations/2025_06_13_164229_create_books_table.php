@@ -15,9 +15,9 @@ return new class extends Migration
             $table->id();
             $table->string('title', 100);
             $table->foreignId('author_id');
-            $table->date('published_date')->nullable();
-            $table->string('isbn', 20)->nullable();
-            $table->text('summary')->nullable();
+            $table->date('published_date');
+            $table->string('isbn', 20);
+            $table->text('summary', 200);
             $table->timestamps();
             
         });

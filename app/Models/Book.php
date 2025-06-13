@@ -6,7 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class Book extends Model
 {
+
     protected $fillable = ['title', 'author_id', 'published_date', 'isbn', 'summary'];
+
+    protected $casts = [
+        'published_date' => 'date'
+    ];
 
 
     public function author()

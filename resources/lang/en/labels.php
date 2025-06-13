@@ -8,7 +8,7 @@ return array (
   'last_name' => 'Last name',
   'bio' => 'Bio',
   'title' => 'Title',
-  'author_id' => 'Author id',
+  'author_id' => 'Author',
   'published_date' => 'Published date',
   'isbn' => 'Isbn',
   'summary' => 'Summary',
