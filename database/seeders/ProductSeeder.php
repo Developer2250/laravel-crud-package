@@ -17,7 +17,6 @@ class ProductSeeder extends Seeder
                 'name' => $faker->word(),
                 'price' => $faker->randomFloat(2, 1, 1000),
                 'description' => $faker->sentence(),
-
             ]);
         }
     }

@@ -22,9 +22,9 @@ class StoreProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:30',
+            'name' => 'required|string|max:20',
             'price' => 'required|numeric',
-            'description' => 'required|string|max:200',
+            'description' => 'required|string|max:100',
         ];
     }
 
@@ -36,11 +36,11 @@ class StoreProductRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.max' => 'The Name may not be greater than 30 characters.',
+            'name.max' => 'The Name may not be greater than 20 characters.',
             'name.required' => 'The Name field is required.',
             'price.numeric' => 'The Price must be a number.',
             'price.required' => 'The Price field is required.',
-            'description.max' => 'The Description may not be greater than 200 characters.',
+            'description.max' => 'The Description may not be greater than 100 characters.',
             'description.required' => 'The Description field is required.',
         ];
     }

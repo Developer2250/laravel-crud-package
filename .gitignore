@@ -15,12 +15,16 @@
 /node_modules
 /public/build
 /public/hot
-/public/storage
-/storage/*.key
-/storage/pail
 /vendor
 Homestead.json
 Homestead.yaml
 npm-debug.log
 Thumbs.db
 yarn-error.log
+
+# Ignore everything in storage except schemas
+/storage/*
+!/storage/app/
+/storage/app/**/*
+!/storage/app/schemas/
+!/storage/app/schemas/**
