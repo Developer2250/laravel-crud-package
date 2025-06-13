@@ -41,6 +41,9 @@ class MakeCrud extends Command
                 return 1;
             }
 
+            // Add label translations early so they're ready for views
+            $this->updateLabelTranslations($fields);
+
             // DELETE all previous CRUD files before generating again
             $this->deleteCrudFiles($model, $table);
 
@@ -99,6 +102,31 @@ class MakeCrud extends Command
         }
     }
 
+    protected function updateLabelTranslations($fields)
+    {
+        $labelsPath = resource_path('lang/en/labels.php');
+
+        // Load existing labels or initialize
+        $labels = file_exists($labelsPath) ? include $labelsPath : [];
+
+        if (!is_array($labels)) {
+            $labels = [];
+        }
+
+        // Add new labels
+        foreach ($fields as $field) {
+            $name = $field['name'];
+            if (!isset($labels[$name])) {
+                $labels[$name] = ucfirst(str_replace('_', ' ', $name));
+            }
+        }
+
+        // Convert array to valid PHP
+        $labelExport = "<?php\n\nreturn " . var_export($labels, true) . ";\n";
+        File::put($labelsPath, $labelExport);
+    }
+
+
     protected function deleteCrudFiles($model, $table)
     {
         $this->info("Deleting existing files for {$model}...");
@@ -144,7 +172,41 @@ class MakeCrud extends Command
                 $this->info("Removed route entry from routes/web.php");
             }
         }
+
+        // Remove label entry from resources/lang/en/labels.php
+        $this->removeLabelFromLangFile($model);
     }
+
+    protected function removeLabelFromLangFile($model)
+    {
+        $labelsFile = resource_path('lang/en/labels.php');
+
+        if (!File::exists($labelsFile)) {
+            $this->warn("labels.php not found.");
+            return;
+        }
+
+        $labels = include $labelsFile;
+        $key = Str::snake($model);
+
+        if (!is_array($labels)) {
+            $this->error("labels.php is not an array.");
+            return;
+        }
+
+        if (!array_key_exists($key, $labels)) {
+            $this->info("No label entry found for '{$key}' in labels.php.");
+            return;
+        }
+
+        unset($labels[$key]);
+
+        $exported = "<?php\n\nreturn " . var_export($labels, true) . ";\n";
+        File::put($labelsFile, $exported);
+
+        $this->info("Removed '{$key}' entry from labels.php.");
+    }
+
 
     protected function appendRoutes($model, $table)
     {
@@ -411,10 +473,10 @@ class MakeCrud extends Command
         $thead = "<th>S. No.</th>\n";
         $tbody = "<td>{{ \$loop->iteration }}</td>\n";
         foreach ($fields as $field) {
-            $label = ucfirst($field['name']);
+            // $label = ucfirst($field['name']);
             $fieldName = $field['name'];
 
-            $thead .= "<th>$label</th>\n";
+            $thead .= "<th>{{ __('labels.$fieldName') }}</th>\n";
             $tbody .= "<td>{{ \$item->$fieldName }}</td>\n";
         }
 
@@ -486,7 +548,7 @@ class MakeCrud extends Command
         $formFields = '';
         foreach ($fields as $field) {
             $name = $field['name'];
-            $label = ucfirst($name);
+            $label = "{{ __('labels.$name') }}";
             $type = $field['type'] == 'decimal' ? 'number' : ($field['type'] == 'text' ? 'textarea' : 'text');
 
             if ($type == 'textarea') {
@@ -558,7 +620,7 @@ class MakeCrud extends Command
         $formFields = '';
         foreach ($fields as $field) {
             $name = $field['name'];
-            $label = ucfirst($name);
+            $label = "{{ __('labels.$name') }}";
             $type = $field['type'] == 'decimal' ? 'number' : ($field['type'] == 'text' ? 'textarea' : 'text');
 
             if ($type === 'textarea') {

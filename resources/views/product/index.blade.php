@@ -17,9 +17,9 @@
             <thead>
                 <tr>
                     <th>S. No.</th>
-<th>Name</th>
-<th>Price</th>
-<th>Description</th>
+<th>{{ __('labels.name') }}</th>
+<th>{{ __('labels.price') }}</th>
+<th>{{ __('labels.description') }}</th>
 
                     <th>Actions</th>
                 </tr>

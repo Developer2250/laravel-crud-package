@@ -14,9 +14,10 @@ class ProductSeeder extends Seeder
 
         for ($i = 0; $i < 20; $i++) {
             Product::create([
-                'name' => $faker->word(),
-                'price' => $faker->randomFloat(2, 1, 1000),
-                'description' => $faker->sentence(),
+'name' => $faker->word(),
+'price' => $faker->randomFloat(2, 1, 1000),
+'description' => $faker->sentence(),
+
             ]);
         }
     }

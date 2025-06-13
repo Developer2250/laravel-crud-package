@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name', 20);
             $table->decimal('price', 8, 2);
-            $table->text('description', 100);
+            $table->text('description', 100)->nullable();
             $table->timestamps();
             
         });
