@@ -1,0 +1,32 @@
+{
+    "model": "Product",
+    "table": "products",
+    "fields": [
+      { 
+        "name": "name", 
+        "type": "string", 
+        "required": true,
+        "length": 20,
+        "nullable":false
+      },
+      { 
+        "name": "price", 
+        "type": "decimal", 
+        "precision": 8, 
+        "scale": 2, 
+        "required": true,
+        "nullable":false
+      },
+      { 
+        "name": "description", 
+        "type": "text", 
+        "length": 100,
+        "required": true,
+        "nullable":true
+      }
+    ]
+  }
+  
+
+
+
