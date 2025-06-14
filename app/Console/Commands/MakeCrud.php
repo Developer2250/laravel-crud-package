@@ -284,18 +284,31 @@ class MakeCrud extends Command
             foreach ($fields as $field) {
                 $type = $field['type'] ?? 'string';
                 $name = $field['name'] ?? null;
-                $nullable = $field['nullable'] ? '->nullable()' : '';
-                $length = isset($field['length']) ? ", {$field['length']}" : '';
-                $precision = isset($field['precision']) ? ", {$field['precision']}, {$field['scale']}" : '';
 
+                // Skip invalid field
                 if (!$name) {
                     $this->error('Field name missing in schema');
                     Log::error('Field name missing in schema');
                     return false;
                 }
 
-                if ($type == 'decimal') {
-                    $fieldsContent .= "\$table->$type('$name'$precision)$nullable;\n            ";
+                // Skip non-database-only type
+                if ($type === 'count') {
+                    continue;
+                }
+
+                $nullable = !empty($field['nullable']) ? '->nullable()' : '';
+                $length = isset($field['length']) ? ", {$field['length']}" : '';
+
+                if ($type === 'decimal') {
+                    $precision = $field['precision'] ?? 8;
+                    $scale = $field['scale'] ?? 2;
+                    $fieldsContent .= "\$table->$type('$name', $precision, $scale)$nullable;\n            ";
+                } elseif ($type === 'enum') {
+                    $options = isset($field['options']) ? json_encode($field['options']) : '[]';
+                    $fieldsContent .= "\$table->enum('$name', $options)$nullable;\n            ";
+                } elseif ($type === 'foreignId') {
+                    $fieldsContent .= "\$table->foreignId('$name')->constrained()$nullable;\n            ";
                 } else {
                     $fieldsContent .= "\$table->$type('$name'$length)$nullable;\n            ";
                 }
@@ -305,8 +318,10 @@ class MakeCrud extends Command
                 $fieldsContent .= "\$table->timestamps();\n            ";
             }
 
+            // Replace placeholders
             $stub = str_replace(['{{ table }}', '{{ fields }}'], [$table, $fieldsContent], $stub);
             File::put($migrationPath, $stub);
+
             $this->info("Migration generated for {$table}");
             return true;
         } catch (\Exception $e) {
@@ -373,11 +388,11 @@ class MakeCrud extends Command
 
                 $relationshipMethods .= <<<EOD
 
-    public function {$method}()
-    {
-        return \$this->{$type}({$related}::class{$foreignKey});
-    }
-EOD;
+                public function {$method}()
+                {
+                    return \$this->{$type}({$related}::class{$foreignKey});
+                }
+            EOD;
             }
 
             // Accessor: getFullNameAttribute
@@ -388,11 +403,11 @@ EOD;
             if (in_array('first_name', $fieldNames) && in_array('last_name', $fieldNames)) {
                 $fullNameAccessor = <<<EOD
 
-    public function getFullNameAttribute()
-    {
-        return trim(\$this->first_name . ' ' . \$this->last_name);
-    }
-EOD;
+                public function getFullNameAttribute()
+                {
+                    return trim(\$this->first_name . ' ' . \$this->last_name);
+                }
+            EOD;
 
                 $appendsLine = "    protected \$appends = ['full_name'];\n\n";
             }
@@ -413,7 +428,6 @@ EOD;
         }
     }
 
-
     protected function generateRequest($model, $fields, $type = 'Update')
     {
         try {
@@ -433,6 +447,9 @@ EOD;
             $messagesArr = [];
 
             foreach ($fields as $field) {
+                if (isset($field['form']) && $field['form'] === false) {
+                    continue;
+                }
                 $name = $field['name'];
                 $label = ucfirst(str_replace('_', ' ', $name));
 
@@ -512,25 +529,45 @@ EOD;
             $namespace = 'App\\Http\\Controllers';
             $tablePlural = Str::plural(Str::snake($model));
 
-            // Detect foreign key relationships (e.g., 'author_id' => 'author')
-            $relations = [];
+            $withRelations = [];
+            $withCountRelations = [];
+
             foreach ($fields as $field) {
-                if (str_ends_with($field['name'], '_id')) {
-                    $relation = Str::camel(str_replace('_id', '', $field['name']));
-                    $relations[] = "'$relation'";
+                $fieldName = $field['name'];
+
+                // Handle foreign key relations
+                if (str_ends_with($fieldName, '_id')) {
+                    $relation = Str::camel(str_replace('_id', '', $fieldName));
+                    $withRelations[] = "'$relation'";
+                }
+
+                // Handle countable relationships (custom logic)
+                if (isset($field['type']) && $field['type'] === 'count' && isset($field['relation'])) {
+                    $withCountRelations[] = "'{$field['relation']}'";
                 }
             }
 
-            $withRelations = count($relations) ? "with([" . implode(', ', $relations) . "])->" : "";
+            // Build with/withCount chain + get()
+            $withParts = [];
 
+            if (!empty($withRelations)) {
+                $withParts[] = 'with([' . implode(', ', $withRelations) . '])';
+            }
+            if (!empty($withCountRelations)) {
+                $withParts[] = 'withCount([' . implode(', ', $withCountRelations) . '])';
+            }
+
+            $withCode = implode('->', $withParts);
+            $withCode .= ($withCode ? '->' : '') . 'latest()->';
+
+            // Replace stub placeholders
             $stub = str_replace(
                 ['{{ namespace }}', '{{ model }}', '{{ table }}', '{{ withRelations }}'],
-                [$namespace, $model, $tablePlural, $withRelations],
+                [$namespace, $model, $tablePlural, $withCode],
                 $stub
             );
 
             File::put($controllerPath, $stub);
-
             $this->info("Custom controller generated: {$controllerName}");
             return true;
         } catch (\Exception $e) {
@@ -576,89 +613,138 @@ EOD;
         $thead = "<th>S. No.</th>\n";
         $tbody = "<td>{{ \$loop->iteration }}</td>\n";
 
+        $fieldNames = collect($fields)->pluck('name');
+        $hasFirstName = $fieldNames->contains('first_name');
+        $hasLastName = $fieldNames->contains('last_name');
+
         foreach ($fields as $field) {
             $fieldName = $field['name'];
+
+            // Combine first_name + last_name into full_name
+            if ($hasFirstName && $hasLastName && in_array($fieldName, ['first_name', 'last_name'])) {
+                if ($fieldName === 'last_name') {
+                    $thead .= "<th>{{ __('labels.full_name') }}</th>\n";
+                    $tbody .= <<<EOD
+                    <td>
+                        @php
+                            \$fullName = trim((\$item->first_name ?? '') . ' ' . (\$item->last_name ?? ''));
+                        @endphp
+                        {{ \$fullName ?: '-' }}
+                    </td>\n
+                    EOD;
+                }
+                continue; // skip both first_name and last_name
+            }
+
+            // Add column header
             $thead .= "<th>{{ __('labels.$fieldName') }}</th>\n";
 
+            // Handle foreign keys (e.g., user_id → user.name or user.full_name)
             if (Str::endsWith($fieldName, '_id')) {
                 $relation = Str::camel(str_replace('_id', '', $fieldName));
-                $tbody .= "<td>{{ \$item->{$relation}->full_name ?? '-' }}</td>\n";
-            } elseif (in_array($fieldName, ['summary', 'description'])) {
+                $tbody .= <<<EOD
+                <td>
+                    {{
+                        \$item->{$relation}->full_name
+                        ?? \$item->{$relation}->name
+                        ?? \$item->{$relation}->title
+                        ?? '-'
+                    }}
+                </td>\n
+                EOD;
+            }
+
+            // Handle relationship counts (e.g., posts_count)
+            elseif (isset($field['type']) && $field['type'] === 'count') {
+                $tbody .= "<td>{{ \$item->$fieldName ?? 0 }}</td>\n";
+            }
+
+            // Handle long text
+            elseif (in_array($fieldName, ['summary', 'description'])) {
                 $tbody .= "<td title=\"{{ \$item->$fieldName }}\">{{ Str::limit(\$item->$fieldName, 50) }}</td>\n";
-            } elseif (Str::contains($fieldName, 'date')) {
+            }
+
+            // Handle dates
+            elseif (Str::contains($fieldName, 'date')) {
                 $tbody .= "<td>{{ optional(\$item->$fieldName)->format('Y-m-d') }}</td>\n";
-            } else {
+            }
+
+            // Default field output
+            else {
                 $tbody .= "<td>{{ \$item->$fieldName }}</td>\n";
             }
         }
 
         $tablePlural = Str::plural($table);
         $tableId = strtolower($table) . '-table';
-        $colspan = count($fields) + 2; // +2 for S.No. and Actions
+        $colspan = $fieldNames->count() + 2;
 
         return <<<EOD
-@extends('layouts.app')
+            @extends('layouts.app')
 
-@section('title', '{$model} List')
+            @section('title', '{$model} List')
 
-@push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-@endpush
+            @push('styles')
+                <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+            @endpush
 
-@section('content')
-    <div class="d-flex justify-content-between align-items-center mb-3 mt-5">
-        <h1>{$model} List</h1>
-        <a href="{{ route('{$tablePlural}.create') }}" class="btn btn-primary">Create {$model}</a>
-    </div>
+            @section('content')
+                <div class="d-flex justify-content-between align-items-center mb-3 mt-5">
+                    <h1>{$model} List</h1>
+                    <a href="{{ route('{$tablePlural}.create') }}" class="btn btn-primary">Create {$model}</a>
+                </div>
 
-    <div class="table-responsive">
-        <table id="{$tableId}" class="table table-bordered table-striped">
-            <thead>
-                <tr>
-                    {$thead}
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse(\${$tablePlural} as \$item)
-                    <tr>
-                        {$tbody}
-                        <td>
-                            <a href="{{ route('{$tablePlural}.show', \$item->id) }}" class="btn btn-sm btn-info">View</a>
-                            <a href="{{ route('{$tablePlural}.edit', \$item->id) }}" class="btn btn-sm btn-warning">Edit</a>
-                            <form action="{{ route('{$tablePlural}.destroy', \$item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this item?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="{$colspan}" class="text-center">No {$model}s found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-@endsection
+                <div class="table-responsive">
+                    <table id="{$tableId}" class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                {$thead}
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse(\${$tablePlural} as \$item)
+                                <tr>
+                                    {$tbody}
+                                    <td>
+                                        <a href="{{ route('{$tablePlural}.show', \$item->id) }}" class="btn btn-sm btn-info">View</a>
+                                        <a href="{{ route('{$tablePlural}.edit', \$item->id) }}" class="btn btn-sm btn-warning">Edit</a>
+                                        <form action="{{ route('{$tablePlural}.destroy', \$item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this item?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="{$colspan}" class="text-center">No {$model}s found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            @endsection
 
-@push('scripts')
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script>
-        \$(document).ready(function () {
-            \$('#{$tableId}').DataTable();
-        });
-    </script>
-@endpush
-EOD;
+            @push('scripts')
+                <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+                <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+                <script>
+                    \$(document).ready(function () {
+                        \$('#{$tableId}').DataTable();
+                    });
+                </script>
+            @endpush
+        EOD;
     }
 
     protected function getCreateViewStub($model, $fields)
     {
         $formFields = '';
         foreach ($fields as $field) {
+            if (($field['form'] ?? true) === false) {
+                continue; // Skip fields where 'form' is false
+            }
             $name = $field['name'];
             $label = "{{ __('labels.$name') }}";
 
@@ -669,24 +755,150 @@ EOD;
                 $type = 'textarea';
             } elseif ($field['type'] === 'date') {
                 $type = 'date'; // calendar input
+            } elseif ($field['type'] === 'enum') {
+                $type = 'enum';
             } else {
                 $type = 'text';
             }
 
-            if ($type === 'textarea') {
+            if ($field['type'] === 'enum') {
+                $options = $field['options'] ?? [];
+                $radios = '';
+                foreach ($options as $option) {
+                    $labelText = ucfirst($option);
+                    $checked = "{{ old('$name') == '$option' ? 'checked' : '' }}";
+                    $radios .= <<<HTML
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="$name" id="{$name}_$option" value="$option" $checked>
+                            <label class="form-check-label" for="{$name}_$option">$labelText</label>
+                        </div>
+                    HTML;
+                }
+
                 $input = <<<HTML
-            <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name') }}</textarea>
-            @error('$name')
-                <div class="invalid-feedback">{{ \$message }}</div>
-            @enderror
-            HTML;
+                    <div>
+                        $radios
+                        @error('$name')
+                            <div class="invalid-feedback d-block">{{ \$message }}</div>
+                        @enderror
+                    </div>
+                HTML;
+            } elseif ($field['type'] === 'text') {
+                $input = <<<HTML
+                    <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name') }}</textarea>
+                    @error('$name')
+                        <div class="invalid-feedback">{{ \$message }}</div>
+                    @enderror
+                HTML;
             } else {
+                $inputType = $field['type'] === 'decimal' ? 'number' : ($field['type'] === 'date' ? 'date' : 'text');
                 $step = $field['type'] === 'decimal' ? ' step="0.01"' : '';
                 $input = <<<HTML
-            <input type="$type" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name') }}">
-            @error('$name')
-                <div class="invalid-feedback">{{ \$message }}</div>
-            @enderror
+                    <input type="$inputType" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name') }}">
+                    @error('$name')
+                        <div class="invalid-feedback">{{ \$message }}</div>
+                    @enderror
+                HTML;
+            }
+
+            $formFields .= <<<EOD
+                <div class="mb-3">
+                    <label for="$name" class="form-label">$label <span class="required">*</span></label>
+                    $input
+                </div>
+            EOD;
+        }
+
+        $table = Str::plural(Str::snake($model));
+
+        return <<<EOD
+            @extends('layouts.app')
+
+            @section('title', 'Create {$model}')
+
+            @section('content')
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h1>Create {$model}</h1>
+                        <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
+                    </div>
+                    <form action="{{ route('{$table}.store') }}" method="POST" id="create-form">
+                        @csrf
+                        $formFields
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
+                            <button type="submit" class="btn btn-success">Save</button>
+                        </div>
+                    </form>
+                </div>
+                <script>
+                    document.getElementById('clear-form').addEventListener('click', function () {
+                        const form = document.getElementById('create-form');
+                        form.querySelectorAll('input, textarea, select').forEach(input => {
+                            const type = input.type;
+                            if (type === 'hidden') return;
+
+                            if (type === 'radio' || type === 'checkbox') {
+                                input.checked = false;
+                            } else if (input.tagName.toLowerCase() === 'select') {
+                                input.selectedIndex = 0;
+                            } else {
+                                input.value = '';
+                            }
+                        });
+                    });
+                </script>
+            @endsection
+        EOD;
+    }
+
+    protected function getEditViewStub($model, $fields)
+    {
+        $formFields = '';
+        foreach ($fields as $field) {
+            if (($field['form'] ?? true) === false) {
+                continue; // Skip fields where 'form' is false
+            }
+            $name = $field['name'];
+            $label = "{{ __('labels.$name') }}";
+            $type = $field['type'] === 'decimal' ? 'number' : ($field['type'] === 'text' ? 'textarea' : ($field['type'] === 'date' ? 'date' : ($field['type'] === 'enum' ? 'enum' : 'text')));
+
+            if ($type === 'enum') {
+                $options = $field['options'] ?? [];
+                $radios = '';
+                foreach ($options as $option) {
+                    $labelText = ucfirst($option);
+                    $checked = "{{ \$item->$name == '$option' ? 'checked' : '' }}";
+                    $radios .= <<<HTML
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="$name" id="{$name}_$option" value="$option" $checked>
+                        <label class="form-check-label" for="{$name}_$option">$labelText</label>
+                    </div>
+                HTML;
+                }
+
+                $input = <<<HTML
+                <div>
+                    $radios
+                    @error('$name')
+                        <div class="invalid-feedback d-block">{{ \$message }}</div>
+                    @enderror
+                </div>
+            HTML;
+            } elseif ($type === 'textarea') {
+                $input = <<<HTML
+                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
+                @error('$name')
+                    <div class="invalid-feedback">{{ \$message }}</div>
+                @enderror
+            HTML;
+            } else {
+                $step = $type === 'number' ? ' step="0.01"' : '';
+                $input = <<<HTML
+                <input type="$type" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name', \$item->$name) }}">
+                @error('$name')
+                    <div class="invalid-feedback">{{ \$message }}</div>
+                @enderror
             HTML;
             }
 
@@ -702,115 +914,45 @@ EOD;
         $table = Str::plural(Str::snake($model));
 
         return <<<EOD
-        @extends('layouts.app')
+            @extends('layouts.app')
 
-        @section('title', 'Create {$model}')
+            @section('title', 'Edit {$model}')
 
-        @section('content')
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h1>Create {$model}</h1>
-                    <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
-                </div>
-                <form action="{{ route('{$table}.store') }}" method="POST" id="create-form">
-                    @csrf
-                    $formFields
-                    <div class="d-flex justify-content-end gap-2">
-                        <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
-                        <button type="submit" class="btn btn-success">Save</button>
+            @section('content')
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h1>Edit {$model}</h1>
+                        <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
                     </div>
-                </form>
-            </div>
-        <script>
-            document.getElementById('clear-form').addEventListener('click', function () {
-                const form = document.getElementById('create-form');
-                form.querySelectorAll('input, textarea, select').forEach(input => {
-                    if (input.type === 'checkbox' || input.type === 'radio') {
-                        input.checked = false;
-                    } else {
-                        input.value = '';
-                    }
-                });
-            });
-        </script>
-        @endsection
-    EOD;
-    }
 
-
-    protected function getEditViewStub($model, $fields)
-    {
-        $formFields = '';
-        foreach ($fields as $field) {
-            $name = $field['name'];
-            $label = "{{ __('labels.$name') }}";
-            $type = $field['type'] == 'decimal' ? 'number' : ($field['type'] == 'text' ? 'textarea' : 'text');
-
-            if ($type === 'textarea') {
-                $input = <<<HTML
-                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
-                @error('$name')
-                    <div class="invalid-feedback">{{ \$message }}</div>
-                @enderror
-                HTML;
-            } else {
-                $step = $field['type'] == 'decimal' ? ' step="0.01"' : '';
-                $input = <<<HTML
-                <input type="$type" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name', \$item->$name) }}">
-                @error('$name')
-                    <div class="invalid-feedback">{{ \$message }}</div>
-                @enderror
-                HTML;
-            }
-
-            $formFields .= <<<EOD
-                <div class="mb-3">
-                    <label for="$name" class="form-label">$label <span class="required">*</span></label>
-                    $input
+                    <form action="{{ route('{$table}.update', \$item->id) }}" method="POST" id="edit-form">
+                        @csrf
+                        @method('PUT')
+                        $formFields
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="reset" class="btn btn-outline-danger" id="edit-clear-form">Cancel</button>
+                            <button type="submit" class="btn btn-success">Update</button>
+                        </div>
+                    </form>
                 </div>
-
-            EOD;
-        }
-
-        $table = Str::plural(Str::snake($model));
-
-        return <<<EOD
-        @extends('layouts.app')
-
-        @section('title', 'Edit {$model}')
-
-        @section('content')
-            <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h1>Edit {$model}</h1>
-                    <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
-                </div>
-
-                <form action="{{ route('{$table}.update', \$item->id) }}" method="POST" id="edit-form">
-                    @csrf
-                    @method('PUT')
-                    $formFields
-                    <div class="d-flex justify-content-end gap-2">
-                        <button type="reset" class="btn btn-outline-danger" id="edit-clear-form">Cancel</button>
-                        <button type="submit" class="btn btn-success">Update</button>
-                    </div>
-                </form>
-            </div>
-        <script>
-            document.getElementById('edit-clear-form').addEventListener('click', function(e) {
-                e.preventDefault(); // Prevent any default actions
-                const form = document.getElementById('edit-form');
-                form.querySelectorAll('input, textarea, select').forEach(input => {
-                    if (input.type === 'hidden') return; // Skip hidden inputs, e.g., _method field
-                    if (input.type === 'checkbox' || input.type === 'radio') {
-                        input.checked = false;
-                    } else {
-                        input.value = '';
-                    }
-                });
-            });
-        </script>
-        @endsection
+                <script>
+                    document.getElementById('edit-clear-form').addEventListener('click', function(e) {
+                        e.preventDefault(); // Prevent any default actions
+                        const form = document.getElementById('edit-form');
+                        form.querySelectorAll('input, textarea, select').forEach(input => {
+                            const type = input.type;
+                            if (type === 'hidden') return;
+                            if (type === 'radio' || type === 'checkbox') {
+                                input.checked = false;
+                            } else if (input.tagName.toLowerCase() === 'select') {
+                                input.selectedIndex = 0;
+                            } else {
+                                input.value = '';
+                            }
+                        });
+                    });
+                </script>
+            @endsection
         EOD;
     }
 
@@ -818,6 +960,9 @@ EOD;
     {
         $fieldsContent = '';
         foreach ($fields as $field) {
+            if (($field['form'] ?? true) === false) {
+                continue; // Skip fields where 'form' is false
+            }
             $name = $field['name'];
             $fieldsContent .= "<p><strong>" . ucfirst($name) . ":</strong> {{ \$item->$name }}</p>\n    ";
         }
@@ -842,75 +987,89 @@ EOD;
         $namespace = "Database\\Seeders";
         $class = $model . "Seeder";
 
-        // Build $fieldsString for seeder with faker data based on field type
         $fieldsString = '';
         foreach ($fields as $field) {
-            $name = $field['name'];
+            $name = $field['name'] ?? null;
             $type = strtolower($field['type'] ?? 'string');
 
-            // Detect foreign key fields like 'author_id'
+            if (!$name || $type === 'count') {
+                continue; // Skip virtual or missing fields
+            }
+
+            // Handle foreign key fields
             if (str_ends_with($name, '_id')) {
                 $relatedModel = ucfirst(Str::camel(str_replace('_id', '', $name)));
-                $fieldsString .= "'$name' => \App\Models\\$relatedModel::inRandomOrder()->value('id') ?? 1,\n";
+                $fieldsString .= "                    '$name' => \\App\\Models\\$relatedModel::inRandomOrder()->value('id') ?? 1,\n";
                 continue;
             }
 
             switch ($type) {
+                case 'enum':
+                    $options = $field['options'] ?? ['option1'];
+                    $optionsList = '[' . implode(', ', array_map(fn($o) => "'$o'", $options)) . ']';
+                    $fieldsString .= "                    '$name' => \$faker->randomElement($optionsList),\n";
+                    break;
+
                 case 'decimal':
                 case 'float':
-                    $fieldsString .= "'$name' => \$faker->randomFloat(2, 1, 1000),\n";
+                    $fieldsString .= "                    '$name' => \$faker->randomFloat(2, 1, 1000),\n";
                     break;
 
                 case 'integer':
                 case 'int':
                 case 'bigint':
-                    $fieldsString .= "'$name' => \$faker->numberBetween(1, 1000),\n";
+                    $fieldsString .= "                    '$name' => \$faker->numberBetween(1, 1000),\n";
                     break;
 
                 case 'text':
-                    $fieldsString .= "'$name' => \$faker->realText(100),\n";
+                    $fieldsString .= "                    '$name' => \$faker->realText(100),\n";
                     break;
 
                 case 'date':
                 case 'datetime':
                 case 'timestamp':
-                    $fieldsString .= "'$name' => \$faker->date('Y-m-d'),\n";
+                    $fieldsString .= "                    '$name' => \$faker->date('Y-m-d'),\n";
                     break;
 
                 case 'string':
                 case 'varchar':
                 default:
                     if ($name === 'isbn') {
-                        $fieldsString .= "'$name' => \$faker->isbn13(),\n";
+                        $fieldsString .= "                    '$name' => \$faker->isbn13(),\n";
+                    } elseif ($name === 'email') {
+                        $fieldsString .= "                    '$name' => \$faker->unique()->safeEmail(),\n";
+                    } elseif (Str::contains(strtolower($name), 'password')) {
+                        $fieldsString .= "                    '$name' => 'user',\n";
                     } else {
-                        $fieldsString .= "'$name' => \$faker->sentence(3),\n";
+                        $fieldsString .= "                    '$name' => \$faker->sentence(3),\n";
                     }
                     break;
             }
         }
 
         $stub = <<<EOD
-            <?php
+<?php
 
-            namespace $namespace;
+namespace $namespace;
 
-            use Illuminate\Database\Seeder;
-            use App\Models\\$model;
-            use Faker\Factory as Faker;
+use Illuminate\Database\Seeder;
+use App\Models\\$model;
+use Faker\Factory as Faker;
 
-            class $class extends Seeder
-            {
-                public function run()
-                {
-                    \$faker = Faker::create('en_US'); // Use US English locale
+class $class extends Seeder
+{
+    public function run()
+    {
+        \$faker = Faker::create('en_US');
 
-                    for (\$i = 0; \$i < 20; \$i++) {
-                        $model::create([
-            $fieldsString            ]);
-                    }
-                }
-            }
-            EOD;
+        for (\$i = 0; \$i < 20; \$i++) {
+            $model::create([
+$fieldsString
+            ]);
+        }
+    }
+}
+EOD;
 
         $seederPath = database_path("seeders/{$class}.php");
         file_put_contents($seederPath, $stub);

@@ -19,6 +19,7 @@
 		<a href="{{ route('books.index') }}" class="btn btn-success">Book</a>
 		<a href="{{ route('products.index') }}" class="btn btn-success">Product</a>
 		<a href="{{ route('authors.index') }}" class="btn btn-success">Author</a>
+		<a href="{{ route('users.index') }}" class="btn btn-success">User</a>
 	</div>
 </body>
 
