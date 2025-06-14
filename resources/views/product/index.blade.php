@@ -30,7 +30,7 @@
                         <td>{{ $loop->iteration }}</td>
 <td>{{ $item->name }}</td>
 <td>{{ $item->price }}</td>
-<td>{{ $item->description }}</td>
+<td title="{{ $item->description }}">{{ Str::limit($item->description, 50) }}</td>
 
                         <td>
                             <a href="{{ route('products.show', $item->id) }}" class="btn btn-sm btn-info">View</a>
@@ -44,7 +44,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="4" class="text-center">No Products found.</td>
+                        <td colspan="5" class="text-center">No Products found.</td>
                     </tr>
                 @endforelse
             </tbody>

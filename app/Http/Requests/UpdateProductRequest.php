@@ -22,7 +22,7 @@ class UpdateProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:20',
+            'name' => 'required|string|max:100',
             'price' => 'required|numeric',
             'description' => 'required|string|max:100',
         ];
@@ -36,7 +36,7 @@ class UpdateProductRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.max' => 'The Name may not be greater than 20 characters.',
+            'name.max' => 'The Name may not be greater than 100 characters.',
             'name.required' => 'The Name field is required.',
             'price.numeric' => 'The Price must be a number.',
             'price.required' => 'The Price field is required.',
