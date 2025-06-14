@@ -1,34 +1,59 @@
-# Laravel CRUD Generator
+# 🔧 Laravel Custom CRUD Generator
+This package provides a powerful custom Artisan command to auto-generate full-featured CRUD (Create, Read, Update, Delete) operations in Laravel using a single JSON schema file, which you need to place in strorage/app/schemas/product.json. It dramatically accelerates development by scaffolding:
 
-Create a custom command for CRUD in Laravel. Just manage to one file, boom, your CURD is generated.
+## Migration files
+1. Eloquent Models with relationships
+2. Form Request classes with validations and custom messages
+3. Controllers with all methods
+4. Blade views (index, create, edit, show)
+5. DataTables integration for index views
 
-## Installation
+## ✨ Key Features
 
-create one file and copy paste that file
+1. 📄 Schema-driven Generation: Define fields, data types, validations, relationships, and more in a JSON schema.
+
+2. 🔄 Auto Overwrite: Automatically deletes and regenerates files if the CRUD module already exists — no need to manually clean up.
+
+3. 🔍 Smart Views: Auto-generates Blade view files (create, edit, show, index) based on field types.
+
+4. 📊 Datatable Integration: Index page comes pre-wired with DataTables for instant sorting, searching, and pagination.
+
+5. 🤝 Relationship Support: Automatically detects and applies model relationships (e.g., belongsTo, hasMany) as defined in the JSON schema.
+
+6. ✅ Validation Ready: Creates Form Request classes with field-level validation rules and custom messages.
+
+
+## 🚀 How to Use
+Place your schema JSON file in a designated directory (e.g., storage/crud-schemas/author.json).
+
+Run the custom command:
 
 ```bash
 php artisan make:crud product
 ```
 
-## Here some snapshots.
-1. List page
+## The command will
 
-[![QQN1-MY3-PQvy-Zftxiwru-ZAQ.png](https://i.postimg.cc/YSGJbbnw/QQN1-MY3-PQvy-Zftxiwru-ZAQ.png)](https://postimg.cc/nsxRLYfd)
+1. Create migration, model, controller, views, and request files.
 
-2. Create page
+2. Automatically wire up relationships and validation rules.
 
-[![m-A8btc-Eh-QIe-Ys-HD6-Xxqt-A.png](https://i.postimg.cc/rFf3Tv7k/m-A8btc-Eh-QIe-Ys-HD6-Xxqt-A.png)](https://postimg.cc/zVR0SPJt)
+3. Scaffold views using proper input fields based on data types.
 
-3. Validation message
+4. Set up a DataTable in the index view.
 
-[![M-Emo-Tf-TQ6m-YACt5al-HZ3-A.png](https://i.postimg.cc/jdS3MM2k/M-Emo-Tf-TQ6m-YACt5al-HZ3-A.png)](https://postimg.cc/xqBPCyKK)
+## 📌 Notes
+The command overwrites all related files (migration, model, controller, views, requests) every time it is run.
 
-4. Edit page
+Ideal for rapid prototyping and admin panel generation.
 
-[![Sz7pu5-D8-Q6-Sm-CPVgv-VOrt-A.png](https://i.postimg.cc/t41Sj7h3/Sz7pu5-D8-Q6-Sm-CPVgv-VOrt-A.png)](https://postimg.cc/Snh7LS1R)
+You can customize view templates or extend logic if needed.
 
-5. Listing with datatable, sorting, searching, pagination
+sample json file located in public/schemas folder
 
-[![3d9z7f2p-S3ua4to-TVRTIIw.png](https://i.postimg.cc/KjvfsYGg/3d9z7f2p-S3ua4to-TVRTIIw.png)](https://postimg.cc/bDW1Zp2z)
+## ✅To-Do / Improvements
+Add support for soft deletes and timestamps toggling
 
-[MIT](https://choosealicense.com/licenses/mit/)
+Customize base templates via stubs
+
+Export functionality for DataTables
