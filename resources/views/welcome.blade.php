@@ -20,6 +20,9 @@
 		<a href="{{ route('products.index') }}" class="btn btn-success">Product</a>
 		<a href="{{ route('authors.index') }}" class="btn btn-success">Author</a>
 		<a href="{{ route('users.index') }}" class="btn btn-success">User</a>
+		<a href="{{ route('posts.index') }}" class="btn btn-success">Post</a>
+		<a href="{{ route('comments.index') }}" class="btn btn-success">Comment</a>
+
 	</div>
 </body>
 
