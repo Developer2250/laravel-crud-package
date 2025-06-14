@@ -1,35 +1,35 @@
 @extends('layouts.app')
 
-@section('title', 'Edit Product')
+@section('title', 'Edit Author')
 
 @section('content')
     <div class="mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1>Edit Product</h1>
-            <a href="{{ route('products.index') }}" class="btn btn-secondary">← Back to List</a>
+            <h1>Edit Author</h1>
+            <a href="{{ route('authors.index') }}" class="btn btn-secondary">← Back to List</a>
         </div>
 
-        <form action="{{ route('products.update', $item->id) }}" method="POST" id="edit-form">
+        <form action="{{ route('authors.update', $item->id) }}" method="POST" id="edit-form">
             @csrf
             @method('PUT')
                 <div class="mb-3">
-        <label for="name" class="form-label">{{ __('labels.name') }} <span class="required">*</span></label>
-        <input type="text" name="name" id="name" class="form-control @error('name') is-invalid @enderror" placeholder="Enter {{ __('labels.name') }}" value="{{ old('name', $item->name) }}">
-@error('name')
+        <label for="first_name" class="form-label">{{ __('labels.first_name') }} <span class="required">*</span></label>
+        <input type="text" name="first_name" id="first_name" class="form-control @error('first_name') is-invalid @enderror" placeholder="Enter {{ __('labels.first_name') }}" value="{{ old('first_name', $item->first_name) }}">
+@error('first_name')
     <div class="invalid-feedback">{{ $message }}</div>
 @enderror
     </div>
     <div class="mb-3">
-        <label for="price" class="form-label">{{ __('labels.price') }} <span class="required">*</span></label>
-        <input type="number" name="price" id="price" class="form-control @error('price') is-invalid @enderror" step="0.01" placeholder="Enter {{ __('labels.price') }}" value="{{ old('price', $item->price) }}">
-@error('price')
+        <label for="last_name" class="form-label">{{ __('labels.last_name') }} <span class="required">*</span></label>
+        <input type="text" name="last_name" id="last_name" class="form-control @error('last_name') is-invalid @enderror" placeholder="Enter {{ __('labels.last_name') }}" value="{{ old('last_name', $item->last_name) }}">
+@error('last_name')
     <div class="invalid-feedback">{{ $message }}</div>
 @enderror
     </div>
     <div class="mb-3">
-        <label for="description" class="form-label">{{ __('labels.description') }} <span class="required">*</span></label>
-        <textarea name="description" id="description" class="form-control @error('description') is-invalid @enderror" placeholder="Enter {{ __('labels.description') }}" rows="4" cols="50">{{ old('description', $item->description) }}</textarea>
-@error('description')
+        <label for="bio" class="form-label">{{ __('labels.bio') }} <span class="required">*</span></label>
+        <textarea name="bio" id="bio" class="form-control @error('bio') is-invalid @enderror" placeholder="Enter {{ __('labels.bio') }}" rows="4" cols="50">{{ old('bio', $item->bio) }}</textarea>
+@error('bio')
     <div class="invalid-feedback">{{ $message }}</div>
 @enderror
     </div>

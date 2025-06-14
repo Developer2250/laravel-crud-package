@@ -12,7 +12,7 @@ class {{ model }}Controller extends Controller
 {
     public function index()
     {
-        ${{ table }} = {{ model }}::all();
+        ${{ table }} = {{ model }}::{{ withRelations }}get();
         return view('{{ model }}.index', compact('{{ table }}'));
     }
 

@@ -3,20 +3,20 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Product;
+use App\Models\Author;
 use Faker\Factory as Faker;
 
-class ProductSeeder extends Seeder
+class AuthorSeeder extends Seeder
 {
     public function run()
     {
         $faker = Faker::create();
 
         for ($i = 0; $i < 20; $i++) {
-            Product::create([
-'name' => $faker->word(),
-'price' => $faker->randomFloat(2, 1, 1000),
-'description' => $faker->sentence(),
+            Author::create([
+'first_name' => $faker->word(),
+'last_name' => $faker->word(),
+'bio' => $faker->sentence(),
 
             ]);
         }
