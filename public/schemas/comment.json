@@ -1,0 +1,44 @@
+{
+    "model": "Comment",
+    "table": "comments",
+    "timestamp": true,
+    "fields": [
+      {
+        "name": "post_id",
+        "type": "foreignId",
+        "references": "id",
+        "on": "posts",
+        "required": true,
+        "nullable": false
+      },
+      {
+        "name": "user_id",
+        "type": "foreignId",
+        "references": "id",
+        "on": "users",
+        "required": true,
+        "nullable": false
+      },
+      {
+        "name": "body",
+        "type": "text",
+        "required": true,
+        "nullable": false
+      }
+    ],
+    "relationships": [
+      {
+        "type": "belongsTo",
+        "model": "Post",
+        "method": "post",
+        "foreign_key": "post_id"
+      },
+      {
+        "type": "belongsTo",
+        "model": "User",
+        "method": "user",
+        "foreign_key": "user_id"
+      }
+    ]
+  }
+  

@@ -1,0 +1,61 @@
+{
+  "model": "User",
+  "table": "users",
+  "timestamp": true,
+  "fields": [
+    {
+      "name": "name",
+      "type": "string",
+      "length": 100,
+      "required": true,
+      "nullable": false
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "length": 150,
+      "required": true,
+      "nullable": false
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "length": 255,
+      "required": true,
+      "nullable": false
+    },
+    {
+      "name": "gender",
+      "type": "enum",
+      "options": ["male", "female", "other"],
+      "required": true,
+      "nullable": false
+    },
+    {
+      "name": "posts_count",
+      "type": "count",
+      "relation": "posts",
+      "form": false
+    },
+    {
+      "name": "comments_count",
+      "type": "count",
+      "relation": "comments",
+      "form": false
+    }
+  ],
+  "relationships": [
+    {
+      "type": "hasMany",
+      "model": "Post",
+      "method": "posts",
+      "foreign_key": "user_id"
+    },
+    {
+      "type": "hasMany",
+      "model": "Comment",
+      "method": "comments",
+      "foreign_key": "user_id"
+    }
+  ]
+}
