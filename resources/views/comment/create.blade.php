@@ -12,13 +12,27 @@
                 @csrf
                     <div class="mb-3">
         <label for="post_id" class="form-label">{{ __('labels.post_id') }} <span class="required">*</span></label>
-            <input type="text" name="post_id" id="post_id" class="form-control @error('post_id') is-invalid @enderror" placeholder="Enter {{ __('labels.post_id') }}" value="{{ old('post_id') }}">
+            <select name="post_id" id="post_id" class="form-select @error('post_id') is-invalid @enderror">
+        <option value="">-- Select Post --</option>
+        @foreach($posts as $item)
+            <option value="{{ $item->id }}" {{ old('post_id') == $item->id ? 'selected' : '' }}>
+                {{ $item->title ?? $item->full_name ?? $item->first_name ?? $item->name }}
+            </option>
+        @endforeach
+    </select>
     @error('post_id')
         <div class="invalid-feedback">{{ $message }}</div>
     @enderror
     </div>    <div class="mb-3">
         <label for="user_id" class="form-label">{{ __('labels.user_id') }} <span class="required">*</span></label>
-            <input type="text" name="user_id" id="user_id" class="form-control @error('user_id') is-invalid @enderror" placeholder="Enter {{ __('labels.user_id') }}" value="{{ old('user_id') }}">
+            <select name="user_id" id="user_id" class="form-select @error('user_id') is-invalid @enderror">
+        <option value="">-- Select User --</option>
+        @foreach($users as $item)
+            <option value="{{ $item->id }}" {{ old('user_id') == $item->id ? 'selected' : '' }}>
+                {{ $item->title ?? $item->full_name ?? $item->first_name ?? $item->name }}
+            </option>
+        @endforeach
+    </select>
     @error('user_id')
         <div class="invalid-feedback">{{ $message }}</div>
     @enderror

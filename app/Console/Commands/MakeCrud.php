@@ -531,25 +531,35 @@ class MakeCrud extends Command
 
             $withRelations = [];
             $withCountRelations = [];
+            $foreignModelAssignments = [];
+            $compactVariables = [];
 
             foreach ($fields as $field) {
                 $fieldName = $field['name'];
+                $fieldType = $field['type'] ?? null;
 
-                // Handle foreign key relations
-                if (str_ends_with($fieldName, '_id')) {
-                    $relation = Str::camel(str_replace('_id', '', $fieldName));
-                    $withRelations[] = "'$relation'";
+                // Detect foreignId
+                if ($fieldType === 'foreignId' && str_ends_with($fieldName, '_id')) {
+                    $relationBase = Str::beforeLast($fieldName, '_id'); // e.g., 'user' from 'user_id'
+                    $modelClass = Str::studly($relationBase);           // 'User'
+                    $variable = Str::plural($relationBase);             // 'users'
+
+                    // Add to with() for index method
+                    $withRelations[] = "'$relationBase'";
+
+                    // Add to create/edit data setup
+                    $foreignModelAssignments[] = "\${$variable} = \\App\\Models\\{$modelClass}::all();";
+                    $compactVariables[] = "'{$variable}'";
                 }
 
-                // Handle countable relationships (custom logic)
-                if (isset($field['type']) && $field['type'] === 'count' && isset($field['relation'])) {
+                // Detect count relationships
+                if ($fieldType === 'count' && isset($field['relation'])) {
                     $withCountRelations[] = "'{$field['relation']}'";
                 }
             }
 
-            // Build with/withCount chain + get()
+            // Eloquent chain for index
             $withParts = [];
-
             if (!empty($withRelations)) {
                 $withParts[] = 'with([' . implode(', ', $withRelations) . '])';
             }
@@ -560,10 +570,28 @@ class MakeCrud extends Command
             $withCode = implode('->', $withParts);
             $withCode .= ($withCode ? '->' : '') . 'latest()->';
 
-            // Replace stub placeholders
+            // Generate foreignId block and compact()
+            $foreignCode = implode("\n        ", $foreignModelAssignments); // For use in create/edit
+            $compactString = implode(', ', $compactVariables);
+
+            // Replace in stub
             $stub = str_replace(
-                ['{{ namespace }}', '{{ model }}', '{{ table }}', '{{ withRelations }}'],
-                [$namespace, $model, $tablePlural, $withCode],
+                [
+                    '{{ namespace }}',
+                    '{{ model }}',
+                    '{{ table }}',
+                    '{{ withRelations }}',
+                    '{{ foreignCreateVars }}',
+                    '{{ foreignCreateCompact }}',
+                ],
+                [
+                    $namespace,
+                    $model,
+                    $tablePlural,
+                    $withCode,
+                    $foreignCode,
+                    $compactString,
+                ],
                 $stub
             );
 
@@ -576,6 +604,7 @@ class MakeCrud extends Command
             return false;
         }
     }
+
 
     protected function generateViews($model, $table, $fields)
     {
@@ -745,111 +774,119 @@ class MakeCrud extends Command
             if (($field['form'] ?? true) === false) {
                 continue; // Skip fields where 'form' is false
             }
+
             $name = $field['name'];
             $label = "{{ __('labels.$name') }}";
+            $type = $field['type'];
+            $isForeignKey = $type === 'foreignId' && str_ends_with($name, '_id');
 
-            // Determine input type
-            if ($field['type'] === 'decimal') {
-                $type = 'number';
-            } elseif ($field['type'] === 'text') {
-                $type = 'textarea';
-            } elseif ($field['type'] === 'date') {
-                $type = 'date'; // calendar input
-            } elseif ($field['type'] === 'enum') {
-                $type = 'enum';
-            } else {
-                $type = 'text';
-            }
-
-            if ($field['type'] === 'enum') {
+            if ($type === 'enum') {
                 $options = $field['options'] ?? [];
                 $radios = '';
                 foreach ($options as $option) {
                     $labelText = ucfirst($option);
                     $checked = "{{ old('$name') == '$option' ? 'checked' : '' }}";
                     $radios .= <<<HTML
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="$name" id="{$name}_$option" value="$option" $checked>
-                            <label class="form-check-label" for="{$name}_$option">$labelText</label>
-                        </div>
-                    HTML;
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="$name" id="{$name}_$option" value="$option" $checked>
+                    <label class="form-check-label" for="{$name}_$option">$labelText</label>
+                </div>
+            HTML;
                 }
 
                 $input = <<<HTML
-                    <div>
-                        $radios
-                        @error('$name')
-                            <div class="invalid-feedback d-block">{{ \$message }}</div>
-                        @enderror
-                    </div>
-                HTML;
-            } elseif ($field['type'] === 'text') {
+            <div>
+                $radios
+                @error('$name')
+                    <div class="invalid-feedback d-block">{{ \$message }}</div>
+                @enderror
+            </div>
+        HTML;
+            } elseif ($isForeignKey) {
+                $related = str_replace('_id', '', $name); // e.g. "post"
+                $relatedVar = Str::plural($related); // e.g. "posts"
+                $relatedLabel = ucfirst($related);
+
                 $input = <<<HTML
-                    <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name') }}</textarea>
-                    @error('$name')
-                        <div class="invalid-feedback">{{ \$message }}</div>
-                    @enderror
-                HTML;
+            <select name="$name" id="$name" class="form-select @error('$name') is-invalid @enderror">
+                <option value="">-- Select $relatedLabel --</option>
+                @foreach(\$$relatedVar as \$item)
+                    <option value="{{ \$item->id }}" {{ old('$name') == \$item->id ? 'selected' : '' }}>
+                        {{ \$item->title ?? \$item->full_name ?? \$item->first_name ?? \$item->name }}
+                    </option>
+                @endforeach
+            </select>
+            @error('$name')
+                <div class="invalid-feedback">{{ \$message }}</div>
+            @enderror
+        HTML;
+            } elseif ($type === 'text') {
+                $input = <<<HTML
+            <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name') }}</textarea>
+            @error('$name')
+                <div class="invalid-feedback">{{ \$message }}</div>
+            @enderror
+        HTML;
             } else {
-                $inputType = $field['type'] === 'decimal' ? 'number' : ($field['type'] === 'date' ? 'date' : 'text');
-                $step = $field['type'] === 'decimal' ? ' step="0.01"' : '';
+                $inputType = $type === 'decimal' ? 'number' : ($type === 'date' ? 'date' : 'text');
+                $step = $type === 'decimal' ? ' step="0.01"' : '';
                 $input = <<<HTML
-                    <input type="$inputType" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name') }}">
-                    @error('$name')
-                        <div class="invalid-feedback">{{ \$message }}</div>
-                    @enderror
-                HTML;
+            <input type="$inputType" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name') }}">
+            @error('$name')
+                <div class="invalid-feedback">{{ \$message }}</div>
+            @enderror
+        HTML;
             }
 
             $formFields .= <<<EOD
-                <div class="mb-3">
-                    <label for="$name" class="form-label">$label <span class="required">*</span></label>
-                    $input
-                </div>
-            EOD;
+        <div class="mb-3">
+            <label for="$name" class="form-label">$label <span class="required">*</span></label>
+            $input
+        </div>
+    EOD;
         }
 
         $table = Str::plural(Str::snake($model));
 
         return <<<EOD
-            @extends('layouts.app')
+    @extends('layouts.app')
 
-            @section('title', 'Create {$model}')
+    @section('title', 'Create {$model}')
 
-            @section('content')
-                <div class="mt-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h1>Create {$model}</h1>
-                        <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
-                    </div>
-                    <form action="{{ route('{$table}.store') }}" method="POST" id="create-form">
-                        @csrf
-                        $formFields
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
-                            <button type="submit" class="btn btn-success">Save</button>
-                        </div>
-                    </form>
+    @section('content')
+        <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1>Create {$model}</h1>
+                <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
+            </div>
+            <form action="{{ route('{$table}.store') }}" method="POST" id="create-form">
+                @csrf
+                $formFields
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="reset" class="btn btn-outline-danger" id="clear-form">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
                 </div>
-                <script>
-                    document.getElementById('clear-form').addEventListener('click', function () {
-                        const form = document.getElementById('create-form');
-                        form.querySelectorAll('input, textarea, select').forEach(input => {
-                            const type = input.type;
-                            if (type === 'hidden') return;
+            </form>
+        </div>
+        <script>
+            document.getElementById('clear-form').addEventListener('click', function () {
+                const form = document.getElementById('create-form');
+                form.querySelectorAll('input, textarea, select').forEach(input => {
+                    const type = input.type;
+                    if (type === 'hidden') return;
 
-                            if (type === 'radio' || type === 'checkbox') {
-                                input.checked = false;
-                            } else if (input.tagName.toLowerCase() === 'select') {
-                                input.selectedIndex = 0;
-                            } else {
-                                input.value = '';
-                            }
-                        });
-                    });
-                </script>
-            @endsection
-        EOD;
+                    if (type === 'radio' || type === 'checkbox') {
+                        input.checked = false;
+                    } else if (input.tagName.toLowerCase() === 'select') {
+                        input.selectedIndex = 0;
+                    } else {
+                        input.value = '';
+                    }
+                });
+            });
+        </script>
+    @endsection
+EOD;
     }
 
     protected function getEditViewStub($model, $fields)
@@ -859,101 +896,126 @@ class MakeCrud extends Command
             if (($field['form'] ?? true) === false) {
                 continue; // Skip fields where 'form' is false
             }
+
             $name = $field['name'];
             $label = "{{ __('labels.$name') }}";
-            $type = $field['type'] === 'decimal' ? 'number' : ($field['type'] === 'text' ? 'textarea' : ($field['type'] === 'date' ? 'date' : ($field['type'] === 'enum' ? 'enum' : 'text')));
+            $type = $field['type'];
+            $isForeignKey = $type === 'foreignId' && str_ends_with($name, '_id');
 
             if ($type === 'enum') {
                 $options = $field['options'] ?? [];
                 $radios = '';
                 foreach ($options as $option) {
                     $labelText = ucfirst($option);
-                    $checked = "{{ \$item->$name == '$option' ? 'checked' : '' }}";
+                    $checked = "{{ old('$name', \$item->$name) == '$option' ? 'checked' : '' }}";
                     $radios .= <<<HTML
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="$name" id="{$name}_$option" value="$option" $checked>
-                        <label class="form-check-label" for="{$name}_$option">$labelText</label>
-                    </div>
-                HTML;
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="$name" id="{$name}_$option" value="$option" $checked>
+                    <label class="form-check-label" for="{$name}_$option">$labelText</label>
+                </div>
+            HTML;
                 }
 
                 $input = <<<HTML
-                <div>
-                    $radios
-                    @error('$name')
-                        <div class="invalid-feedback d-block">{{ \$message }}</div>
-                    @enderror
-                </div>
-            HTML;
-            } elseif ($type === 'textarea') {
+            <div>
+                $radios
+                @error('$name')
+                    <div class="invalid-feedback d-block">{{ \$message }}</div>
+                @enderror
+            </div>
+        HTML;
+            } elseif ($isForeignKey) {
+                $related = str_replace('_id', '', $name); // e.g. post
+                $relatedVar = Str::plural($related); // e.g. posts
+                $relatedLabel = ucfirst($related);
+
                 $input = <<<HTML
-                <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
+                <select name="$name" id="$name" class="form-select @error('$name') is-invalid @enderror">
+                    <option value="">-- Select $relatedLabel --</option>
+                    @foreach(\$$relatedVar as \$relItem)
+                        <option value="{{ \$relItem->id }}" {{ old('$name', \$item->$name) == \$relItem->id ? 'selected' : '' }}>
+                            {{ \$relItem->title ?? (\$relItem->first_name && \$relItem->last_name ? \$relItem->first_name . ' ' . \$relItem->last_name : (\$relItem->name ?? 'N/A')) }}
+                        </option>
+                    @endforeach
+                </select>
                 @error('$name')
                     <div class="invalid-feedback">{{ \$message }}</div>
                 @enderror
             HTML;
+            } elseif ($type === 'text') {
+                $input = <<<HTML
+            <textarea name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror" placeholder="Enter $label" rows="4" cols="50">{{ old('$name', \$item->$name) }}</textarea>
+            @error('$name')
+                <div class="invalid-feedback">{{ \$message }}</div>
+            @enderror
+        HTML;
             } else {
-                $step = $type === 'number' ? ' step="0.01"' : '';
+                $inputType = $type === 'decimal' ? 'number' : ($type === 'date' ? 'date' : 'text');
+                $step = $type === 'decimal' ? ' step="0.01"' : '';
+
+                $formattedValue = $type === 'date'
+                    ? "{{ old('$name', optional(\$item->$name)->format('Y-m-d')) }}"
+                    : "{{ old('$name', \$item->$name) }}";
+
                 $input = <<<HTML
-                <input type="$type" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value="{{ old('$name', \$item->$name) }}">
-                @error('$name')
-                    <div class="invalid-feedback">{{ \$message }}</div>
-                @enderror
-            HTML;
+            <input type="$inputType" name="$name" id="$name" class="form-control @error('$name') is-invalid @enderror"$step placeholder="Enter $label" value=$formattedValue>
+            @error('$name')
+                <div class="invalid-feedback">{{ \$message }}</div>
+            @enderror
+        HTML;
             }
 
             $formFields .= <<<EOD
-            <div class="mb-3">
-                <label for="$name" class="form-label">$label <span class="required">*</span></label>
-                $input
-            </div>
-
-        EOD;
+        <div class="mb-3">
+            <label for="$name" class="form-label">$label <span class="required">*</span></label>
+            $input
+        </div>
+    EOD;
         }
 
         $table = Str::plural(Str::snake($model));
 
         return <<<EOD
-            @extends('layouts.app')
+    @extends('layouts.app')
 
-            @section('title', 'Edit {$model}')
+    @section('title', 'Edit {$model}')
 
-            @section('content')
-                <div class="mt-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h1>Edit {$model}</h1>
-                        <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
-                    </div>
+    @section('content')
+        <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1>Edit {$model}</h1>
+                <a href="{{ route('{$table}.index') }}" class="btn btn-secondary">← Back to List</a>
+            </div>
 
-                    <form action="{{ route('{$table}.update', \$item->id) }}" method="POST" id="edit-form">
-                        @csrf
-                        @method('PUT')
-                        $formFields
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="reset" class="btn btn-outline-danger" id="edit-clear-form">Cancel</button>
-                            <button type="submit" class="btn btn-success">Update</button>
-                        </div>
-                    </form>
+            <form action="{{ route('{$table}.update', \$item->id) }}" method="POST" id="edit-form">
+                @csrf
+                @method('PUT')
+                $formFields
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="reset" class="btn btn-outline-danger" id="edit-clear-form">Cancel</button>
+                    <button type="submit" class="btn btn-success">Update</button>
                 </div>
-                <script>
-                    document.getElementById('edit-clear-form').addEventListener('click', function(e) {
-                        e.preventDefault(); // Prevent any default actions
-                        const form = document.getElementById('edit-form');
-                        form.querySelectorAll('input, textarea, select').forEach(input => {
-                            const type = input.type;
-                            if (type === 'hidden') return;
-                            if (type === 'radio' || type === 'checkbox') {
-                                input.checked = false;
-                            } else if (input.tagName.toLowerCase() === 'select') {
-                                input.selectedIndex = 0;
-                            } else {
-                                input.value = '';
-                            }
-                        });
-                    });
-                </script>
-            @endsection
-        EOD;
+            </form>
+        </div>
+        <script>
+            document.getElementById('edit-clear-form').addEventListener('click', function(e) {
+                e.preventDefault();
+                const form = document.getElementById('edit-form');
+                form.querySelectorAll('input, textarea, select').forEach(input => {
+                    const type = input.type;
+                    if (type === 'hidden') return;
+                    if (type === 'radio' || type === 'checkbox') {
+                        input.checked = false;
+                    } else if (input.tagName.toLowerCase() === 'select') {
+                        input.selectedIndex = 0;
+                    } else {
+                        input.value = '';
+                    }
+                });
+            });
+        </script>
+    @endsection
+EOD;
     }
 
     protected function getShowViewStub($model, $fields)

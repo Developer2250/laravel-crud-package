@@ -21,4 +21,5 @@ return array (
   'body' => 'Comment',
   'posts_count' => 'Posts count',
   'comments_count' => 'Comments count',
+  'full_name' => 'Full Name',
 );

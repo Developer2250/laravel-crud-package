@@ -12,13 +12,14 @@ class BookController extends Controller
 {
     public function index()
     {
-        $books = Book::with(['author'])->get();
+        $books = Book::with(['author'])->latest()->get();
         return view('Book.index', compact('books'));
     }
 
     public function create()
     {
-        return view('Book.create');
+        $authors = \App\Models\Author::all();
+        return view('Book.create',compact('authors'));
     }
 
     public function store(StoreBookRequest $request)
@@ -37,7 +38,8 @@ class BookController extends Controller
     public function edit($id)
     {
         $item = Book::findOrFail($id);
-        return view('Book.edit', compact('item'));
+        $authors = \App\Models\Author::all();
+        return view('Book.edit', compact('item', 'authors'));
     }
 
     public function update(UpdateBookRequest $request, $id)
