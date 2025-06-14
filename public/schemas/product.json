@@ -1,12 +1,13 @@
 {
     "model": "Product",
     "table": "products",
+    "timestamp":true,
     "fields": [
       { 
         "name": "name", 
         "type": "string", 
         "required": true,
-        "length": 20,
+        "length": 100,
         "nullable":false
       },
       { 
