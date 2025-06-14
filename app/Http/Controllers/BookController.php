@@ -19,7 +19,7 @@ class BookController extends Controller
     public function create()
     {
         $authors = \App\Models\Author::latest()->get();
-        return view('Book.create',compact('authors'));
+        return view('Book.create', compact('authors'));
     }
 
     public function store(StoreBookRequest $request)

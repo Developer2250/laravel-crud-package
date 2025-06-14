@@ -538,27 +538,22 @@ class MakeCrud extends Command
                 $fieldName = $field['name'];
                 $fieldType = $field['type'] ?? null;
 
-                // Detect foreignId
                 if ($fieldType === 'foreignId' && str_ends_with($fieldName, '_id')) {
-                    $relationBase = Str::beforeLast($fieldName, '_id'); // e.g., 'user' from 'user_id'
+                    $relationBase = Str::beforeLast($fieldName, '_id'); // 'user'
                     $modelClass = Str::studly($relationBase);           // 'User'
                     $variable = Str::plural($relationBase);             // 'users'
 
-                    // Add to with() for index method
                     $withRelations[] = "'$relationBase'";
-
-                    // Add to create/edit data setup
                     $foreignModelAssignments[] = "\${$variable} = \\App\\Models\\{$modelClass}::latest()->get();";
-                    $compactVariables[] = "'{$variable}'";
+                    $compactVariables[] = $variable;
                 }
 
-                // Detect count relationships
                 if ($fieldType === 'count' && isset($field['relation'])) {
                     $withCountRelations[] = "'{$field['relation']}'";
                 }
             }
 
-            // Eloquent chain for index
+            // Build with(), withCount(), latest()
             $withParts = [];
             if (!empty($withRelations)) {
                 $withParts[] = 'with([' . implode(', ', $withRelations) . '])';
@@ -570,11 +565,23 @@ class MakeCrud extends Command
             $withCode = implode('->', $withParts);
             $withCode .= ($withCode ? '->' : '') . 'latest()->';
 
-            // Generate foreignId block and compact()
-            $foreignCode = implode("\n        ", $foreignModelAssignments); // For use in create/edit
-            $compactString = implode(', ', $compactVariables);
+            // Final blocks for create/edit
+            $foreignCode = implode("\n        ", $foreignModelAssignments);
 
-            // Replace in stub
+            if (!empty($compactVariables)) {
+                // Add single quotes around each variable
+                $quotedVars = array_map(fn($var) => "'$var'", $compactVariables);
+                // Join quoted variables by comma
+                $compactCode = implode(', ', $quotedVars);
+                // Final compact() statement
+                $createViewCompact = ", compact($compactCode)";
+                $editViewCompact = ", compact('item', $compactCode)";
+            } else {
+                $createViewCompact = '';
+                $editViewCompact = ", compact('item')";
+            }
+
+            // Replace in controller.stub
             $stub = str_replace(
                 [
                     '{{ namespace }}',
@@ -582,7 +589,8 @@ class MakeCrud extends Command
                     '{{ table }}',
                     '{{ withRelations }}',
                     '{{ foreignCreateVars }}',
-                    '{{ foreignCreateCompact }}',
+                    '{{ createViewCompact }}',
+                    '{{ editViewCompact }}',
                 ],
                 [
                     $namespace,
@@ -590,7 +598,8 @@ class MakeCrud extends Command
                     $tablePlural,
                     $withCode,
                     $foreignCode,
-                    $compactString,
+                    $createViewCompact,
+                    $editViewCompact,
                 ],
                 $stub
             );

@@ -18,6 +18,7 @@ class UserController extends Controller
 
     public function create()
     {
+        
         return view('User.create');
     }
 
@@ -37,6 +38,7 @@ class UserController extends Controller
     public function edit($id)
     {
         $item = User::findOrFail($id);
+        
         return view('User.edit', compact('item'));
     }
 

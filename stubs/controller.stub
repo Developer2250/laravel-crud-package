@@ -19,7 +19,7 @@ class {{ model }}Controller extends Controller
     public function create()
     {
         {{ foreignCreateVars }}
-        return view('{{ model }}.create',compact({{ foreignCreateCompact }}));
+        return view('{{ model }}.create'{{ createViewCompact }});
     }
 
     public function store(Store{{ model }}Request $request)
@@ -39,7 +39,7 @@ class {{ model }}Controller extends Controller
     {
         $item = {{ model }}::findOrFail($id);
         {{ foreignCreateVars }}
-        return view('{{ model }}.edit', compact('item', {{ foreignCreateCompact }}));
+        return view('{{ model }}.edit'{{ editViewCompact }});
     }
 
     public function update(Update{{ model }}Request $request, $id)
