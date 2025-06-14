@@ -10,14 +10,13 @@ class ProductSeeder extends Seeder
 {
     public function run()
     {
-        $faker = Faker::create();
+        $faker = Faker::create('en_US'); // Use US English locale
 
         for ($i = 0; $i < 20; $i++) {
             Product::create([
-'name' => $faker->word(),
+'name' => $faker->sentence(3),
 'price' => $faker->randomFloat(2, 1, 1000),
-'description' => $faker->sentence(),
-
+'description' => $faker->realText(100),
             ]);
         }
     }
