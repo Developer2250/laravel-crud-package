@@ -54,13 +54,6 @@ You can customize view templates or extend logic if needed.
 
 sample json file located in public/schemas folder
 
-## ✅To-Do / Improvements
-Add support for soft deletes and timestamps toggling
-
-Customize base templates via stubs
-
-Export functionality for DataTables
-
 
 ## Snap-shots
 1. [![3j-BHRr2x-Q66-WRxov-J02-Ig-Q.png](https://i.postimg.cc/XqbwXpRt/3j-BHRr2x-Q66-WRxov-J02-Ig-Q.png)](https://postimg.cc/34tycJJZ)
