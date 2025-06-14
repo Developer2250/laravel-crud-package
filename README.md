@@ -27,7 +27,7 @@ This package provides a powerful custom Artisan command to auto-generate full-fe
 
 
 ## 🚀 How to Use
-Place your schema JSON file in a designated directory (e.g., storage/crud-schemas/author.json).
+Place your schema JSON file in a designated directory (e.g., storage/app/schemas/author.json).
 
 Run the custom command:
 
