@@ -20,8 +20,8 @@ Route::resource('users', UserController::class);
 use App\Http\Controllers\PostController;
 Route::resource('posts', PostController::class);
 
-use App\Http\Controllers\BookController;
-Route::resource('books', BookController::class);
-
 use App\Http\Controllers\CommentController;
 Route::resource('comments', CommentController::class);
+
+use App\Http\Controllers\BookController;
+Route::resource('books', BookController::class);

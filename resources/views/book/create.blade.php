@@ -22,7 +22,7 @@
         <option value="">-- Select Author --</option>
         @foreach($authors as $item)
             <option value="{{ $item->id }}" {{ old('author_id') == $item->id ? 'selected' : '' }}>
-                {{ $item->full_name ?? $item->first_name ?? $item->name }}
+                {{ $item->title ?? $item->full_name ?? $item->first_name ?? $item->name }}
             </option>
         @endforeach
     </select>

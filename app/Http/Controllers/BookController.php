@@ -18,7 +18,7 @@ class BookController extends Controller
 
     public function create()
     {
-        $authors = \App\Models\Author::all();
+        $authors = \App\Models\Author::latest()->get();
         return view('Book.create',compact('authors'));
     }
 
@@ -38,7 +38,7 @@ class BookController extends Controller
     public function edit($id)
     {
         $item = Book::findOrFail($id);
-        $authors = \App\Models\Author::all();
+        $authors = \App\Models\Author::latest()->get();
         return view('Book.edit', compact('item', 'authors'));
     }
 

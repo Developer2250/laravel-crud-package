@@ -548,7 +548,7 @@ class MakeCrud extends Command
                     $withRelations[] = "'$relationBase'";
 
                     // Add to create/edit data setup
-                    $foreignModelAssignments[] = "\${$variable} = \\App\\Models\\{$modelClass}::all();";
+                    $foreignModelAssignments[] = "\${$variable} = \\App\\Models\\{$modelClass}::latest()->get();";
                     $compactVariables[] = "'{$variable}'";
                 }
 
@@ -604,7 +604,6 @@ class MakeCrud extends Command
             return false;
         }
     }
-
 
     protected function generateViews($model, $table, $fields)
     {
