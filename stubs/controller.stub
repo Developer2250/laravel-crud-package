@@ -18,7 +18,8 @@ class {{ model }}Controller extends Controller
 
     public function create()
     {
-        return view('{{ model }}.create');
+        {{ foreignCreateVars }}
+        return view('{{ model }}.create',compact({{ foreignCreateCompact }}));
     }
 
     public function store(Store{{ model }}Request $request)
@@ -37,7 +38,8 @@ class {{ model }}Controller extends Controller
     public function edit($id)
     {
         $item = {{ model }}::findOrFail($id);
-        return view('{{ model }}.edit', compact('item'));
+        {{ foreignCreateVars }}
+        return view('{{ model }}.edit', compact('item', {{ foreignCreateCompact }}));
     }
 
     public function update(Update{{ model }}Request $request, $id)

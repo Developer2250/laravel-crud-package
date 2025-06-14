@@ -1,0 +1,36 @@
+{
+    "model": "Author",
+    "table": "authors",
+    "timestamp": true,
+    "fields": [
+      {
+        "name": "first_name",
+        "type": "string",
+        "required": true,
+        "length": 50,
+        "nullable": false
+      },
+      {
+        "name": "last_name",
+        "type": "string",
+        "required": true,
+        "length": 50,
+        "nullable": false
+      },
+      {
+        "name": "bio",
+        "type": "text",
+        "required": true,
+        "nullable": true
+      }
+    ],
+    "relationships": [
+      {
+        "type": "hasMany",
+        "model": "Book",
+        "method": "books",
+        "foreign_key": "author_id"
+      }
+    ]
+  }
+  

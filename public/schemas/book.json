@@ -1,0 +1,51 @@
+{
+    "model": "Book",
+    "table": "books",
+    "timestamp": true,
+    "fields": [
+      {
+        "name": "title",
+        "type": "string",
+        "length": 100,
+        "required": true,
+        "nullable": false
+      },
+      {
+        "name": "author_id",
+        "type": "foreignId",
+        "references": "id",
+        "on": "authors",
+        "required": true,
+        "nullable": false
+      },
+      {
+        "name": "published_date",
+        "type": "date",
+        "required": true,
+        "nullable": false
+      },
+      {
+        "name": "isbn",
+        "type": "string",
+        "required": true,
+        "length": 20,
+        "nullable": false
+      },
+      {
+        "name": "summary",
+        "type": "text",
+        "length": 200,
+        "required": true,
+        "nullable": false
+      }
+    ],
+    "relationships": [
+      {
+        "type": "belongsTo",
+        "model": "Author",
+        "method": "author",
+        "foreign_key": "author_id"
+      }
+    ]
+  }
+  
